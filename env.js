@@ -8,8 +8,11 @@ const CONFIG = {
     // 可在此新增更多信箱地址
   ],
   
-  // [新增] 篩選信件標題的關鍵字
-  SUBJECT_KEYWORD: '【漏洞預警】',
+  // [修改] 支援多個標題關鍵字 (陣列格式)
+  SUBJECT_KEYWORDS: [
+    '【漏洞預警】',
+    // 可在此新增更多標題關鍵字
+  ],
   
   PERSON_A_EMAIL: 'eric@du.tw',
   SPREADSHEET_ID: '1uRyOZecs0GoQ7QMI', 
@@ -20,11 +23,18 @@ const CONFIG = {
   
   GOOGLE_CHAT_WEBHOOK_URL: 'https://chat.googleapis.coWEfRq3CPzqKqqsHEWtgS9oggV4qis8',
   
-  // [修改] 搜尋語法：支援多個寄件者，使用 Gmail 的 {from:x from:y} 語法
+  // [修改] 搜尋語法：支援多個寄件者和多個標題關鍵字
   getSearchQuery: function() {
+    // 寄件者條件
     const fromClause = this.SENDER_B_EMAILS.length === 1
       ? `from:${this.SENDER_B_EMAILS[0]}`
       : `{${this.SENDER_B_EMAILS.map(e => `from:${e}`).join(' ')}}`;
-    return `${fromClause} subject:"${this.SUBJECT_KEYWORD}" is:unread`;
+    
+    // 標題關鍵字條件
+    const subjectClause = this.SUBJECT_KEYWORDS.length === 1
+      ? `subject:"${this.SUBJECT_KEYWORDS[0]}"`
+      : `{${this.SUBJECT_KEYWORDS.map(k => `subject:"${k}"`).join(' ')}}`;
+    
+    return `${fromClause} ${subjectClause} is:unread`;
   }
 };

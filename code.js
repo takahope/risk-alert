@@ -72,11 +72,16 @@ function processIncomingEmails() {
   // 1. 讀取當前設定
   const settings = getSystemSettings();
   
-  // 2. 構建搜尋語法 (支援多個寄件者)
+  // 2. 構建搜尋語法 (支援多個寄件者和多個標題關鍵字)
   const fromClause = CONFIG.SENDER_B_EMAILS.length === 1
     ? `from:${CONFIG.SENDER_B_EMAILS[0]}`
     : `{${CONFIG.SENDER_B_EMAILS.map(e => `from:${e}`).join(' ')}}`;
-  let query = `${fromClause} subject:"${CONFIG.SUBJECT_KEYWORD}"`;
+  
+  const subjectClause = CONFIG.SUBJECT_KEYWORDS.length === 1
+    ? `subject:"${CONFIG.SUBJECT_KEYWORDS[0]}"`
+    : `{${CONFIG.SUBJECT_KEYWORDS.map(k => `subject:"${k}"`).join(' ')}}`;
+  
+  let query = `${fromClause} ${subjectClause}`;
   
   // 如果設定 A2="否" (預設)，則只抓未讀；若 A2="是"，則不加限制(會掃描所有信，靠 MessageID 去重)
   if (!settings.scanRead) {
