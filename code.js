@@ -158,6 +158,70 @@ function getDashboardData() {
   }
 }
 
+/**
+ * 取得指定紀錄的郵件內容（漸進式載入）
+ * 如果 K 欄已有內容則直接回傳，否則透過 Message ID 從 Gmail 讀取並存入 K 欄
+ * @param {number} rowIndex - 資料列索引（從 0 開始，對應前端 filteredData 的索引）
+ * @param {string} msgId - Message ID（從前端傳入）
+ * @returns {Object} { success: boolean, content: string, error?: string }
+ */
+function getEmailContent(rowIndex, msgId) {
+  try {
+    const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.LOG_SHEET_NAME);
+    if (!sheet) throw new Error('找不到 Log 工作表');
+    
+    // 由於前端資料經過排序，我們需要透過 msgId 找到正確的列
+    const lastRow = sheet.getLastRow();
+    if (lastRow <= 1) throw new Error('沒有資料');
+    
+    // 讀取所有 Message ID (G 欄) 和 Email Content (K 欄)
+    const allData = sheet.getRange(2, 7, lastRow - 1, 5).getValues(); // G 到 K 欄
+    
+    // 找到對應 msgId 的列
+    let targetRow = -1;
+    for (let i = 0; i < allData.length; i++) {
+      if (allData[i][0] === msgId) { // G 欄是 Message ID
+        targetRow = i + 2; // 實際列號 (加上標題列)
+        
+        // 檢查 K 欄 (index 4) 是否已有內容
+        const existingContent = allData[i][4];
+        if (existingContent && existingContent.trim() !== '') {
+          return { success: true, content: existingContent };
+        }
+        break;
+      }
+    }
+    
+    if (targetRow === -1) {
+      throw new Error('找不到對應的紀錄');
+    }
+    
+    // K 欄為空，需要從 Gmail 讀取
+    if (!msgId) {
+      return { success: false, content: '', error: '此紀錄沒有關聯的郵件 ID' };
+    }
+    
+    // 透過 Message ID 查找郵件
+    const message = findMessageById(msgId);
+    if (!message) {
+      return { success: false, content: '', error: '無法找到對應的郵件，可能已被刪除' };
+    }
+    
+    // 取得郵件內容
+    const emailContent = message.getPlainBody();
+    const contentToSave = emailContent.substring(0, 10000); // 限制最大 10000 字
+    
+    // 儲存到 K 欄
+    sheet.getRange(targetRow, 11).setValue(contentToSave);
+    
+    return { success: true, content: contentToSave };
+    
+  } catch (e) {
+    console.error('取得郵件內容失敗: ' + e.message);
+    return { success: false, content: '', error: e.message };
+  }
+}
+
 // ==========================================
 // 3. 主控制器 (Main Controller)
 // ==========================================
@@ -254,7 +318,7 @@ function processSingleMessage(message, assetList, settings) {
   
   if (!warningName) {
     const errorMsg = `無法提取警訊名稱或漏洞說明`;
-    logExecutionResult('ERROR', '解析失敗', 'N/A', errorMsg, msgId, emailDate, hasReply, notInUse);
+    logExecutionResult('ERROR', '解析失敗', 'N/A', errorMsg, msgId, emailDate, hasReply, notInUse, body.substring(0, 10000));
     if (settings.chatNotify) sendToChat(`⚠️ 錯誤報告：${errorMsg}`);
     return; 
   }
@@ -279,7 +343,7 @@ function processSingleMessage(message, assetList, settings) {
     } else if (settings.chatNotify) {
        sendToChat(`🚨 **[資產命中] (草稿功能未啟用)**\n偵測資產：${matchedAssetStr}\n警訊資訊：${warningName}`);
     }
-    logExecutionResult('ALERT', warningName, matchedAssetStr, actionLog, msgId, emailDate, hasReply, notInUse);
+    logExecutionResult('ALERT', warningName, matchedAssetStr, actionLog, msgId, emailDate, hasReply, notInUse, body.substring(0, 10000));
   } else {
     // 無命中資產：直接標記為 SAFE 和 未使用
     let actionLog = '僅紀錄 (自動草稿已關閉)';
@@ -287,7 +351,7 @@ function processSingleMessage(message, assetList, settings) {
       createDraftReplyToSenderB(warningName, message, settings);
       actionLog = '已建立回覆草稿';
     }
-    logExecutionResult('SAFE', warningName, '無相關資產', actionLog, msgId, emailDate, hasReply, '未使用');
+    logExecutionResult('SAFE', warningName, '無相關資產', actionLog, msgId, emailDate, hasReply, '未使用', body.substring(0, 10000));
   }
 }
 
@@ -491,19 +555,19 @@ function ensureLogSheetExists() {
   let sheet = ss.getSheetByName(CONFIG.LOG_SHEET_NAME);
   if (!sheet) {
     sheet = ss.insertSheet(CONFIG.LOG_SHEET_NAME);
-    // [修改] 新增 'Has Reply', 'Not In Use', 'Operator' 標題
-    sheet.appendRow(['Timestamp', 'Status', 'Warning Name', 'Matched Asset', 'Action', 'Email Date', 'Message ID', 'Has Reply', 'Not In Use', 'Operator']);
+    // [修改] 新增 'Has Reply', 'Not In Use', 'Operator', 'Email Content' 標題
+    sheet.appendRow(['Timestamp', 'Status', 'Warning Name', 'Matched Asset', 'Action', 'Email Date', 'Message ID', 'Has Reply', 'Not In Use', 'Operator', 'Email Content']);
     sheet.setFrozenRows(1);
   }
 }
 
-function logExecutionResult(status, warningName, asset, action, msgId, emailDate, hasReply = '', notInUse = '') {
+function logExecutionResult(status, warningName, asset, action, msgId, emailDate, hasReply = '', notInUse = '', emailContent = '') {
   try {
     const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.LOG_SHEET_NAME);
     if (sheet) {
       const time = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
-      // [修改] 寫入順序加入 hasReply 和 notInUse
-      sheet.appendRow([time, status, warningName, asset, action, emailDate, msgId, hasReply, notInUse]);
+      // [修改] 寫入順序加入 hasReply, notInUse 和 emailContent (K欄)
+      sheet.appendRow([time, status, warningName, asset, action, emailDate, msgId, hasReply, notInUse, '', emailContent]);
     }
   } catch (e) {
     console.error("寫入 Log 失敗: " + e.message);

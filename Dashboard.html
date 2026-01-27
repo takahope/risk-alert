@@ -520,7 +520,7 @@
         transform: rotate(180deg);
       }
 
-      /* 信件連結 */
+      /* 信件查看按鈕 */
       .email-link {
         display: inline-flex;
         align-items: center;
@@ -531,6 +531,9 @@
         border-radius: 4px;
         transition: all 0.2s;
         vertical-align: middle;
+        background: none;
+        border: none;
+        cursor: pointer;
       }
 
       .email-link:hover {
@@ -538,7 +541,149 @@
         transform: scale(1.1);
       }
 
-      /* 使用狀態按鈕 */
+      /* 郵件內容彈窗 */
+      .email-modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 10000;
+        justify-content: center;
+        align-items: center;
+        padding: 20px;
+        box-sizing: border-box;
+      }
+
+      .email-modal-overlay.active {
+        display: flex;
+      }
+
+      .email-modal {
+        background: white;
+        border-radius: 12px;
+        max-width: 800px;
+        width: 100%;
+        max-height: 80vh;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        animation: modalSlideIn 0.3s ease;
+      }
+
+      @keyframes modalSlideIn {
+        from {
+          opacity: 0;
+          transform: translateY(-20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .email-modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px;
+        border-bottom: 1px solid #e0e0e0;
+        background: #f8f9fa;
+        border-radius: 12px 12px 0 0;
+      }
+
+      .email-modal-header h3 {
+        margin: 0;
+        font-size: 16px;
+        color: #333;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .email-modal-close {
+        background: none;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        color: #666;
+        padding: 4px 8px;
+        border-radius: 4px;
+        transition: all 0.2s;
+      }
+
+      .email-modal-close:hover {
+        background: #e0e0e0;
+        color: #333;
+      }
+
+      .email-modal-body {
+        padding: 20px;
+        overflow-y: auto;
+        flex: 1;
+      }
+
+      .email-content {
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        font-size: 14px;
+        line-height: 1.6;
+        color: #333;
+      }
+
+      .email-loading {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 40px;
+        color: #666;
+      }
+
+      .email-loading .spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid #e0e0e0;
+        border-top-color: #1a73e8;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 16px;
+      }
+
+      .email-error {
+        text-align: center;
+        padding: 40px;
+        color: #d93025;
+      }
+
+      .email-error .icon {
+        font-size: 48px;
+        margin-bottom: 16px;
+      }
+
+      @media (max-width: 768px) {
+        .email-modal {
+          max-height: 90vh;
+          margin: 10px;
+        }
+
+        .email-modal-header {
+          padding: 12px 16px;
+        }
+
+        .email-modal-body {
+          padding: 16px;
+        }
+
+        .email-content {
+          font-size: 13px;
+        }
+      }
+
+      /* 使用狀態按鈕 */ */
       .usage-btn-group {
         display: flex;
         flex-direction: column;
@@ -1220,6 +1365,22 @@
     </style>
   </head>
   <body>
+    <!-- 郵件內容彈窗 -->
+    <div class="email-modal-overlay" id="email-modal-overlay" onclick="closeEmailModal(event)">
+      <div class="email-modal" onclick="event.stopPropagation()">
+        <div class="email-modal-header">
+          <h3>📧 郵件內容</h3>
+          <button class="email-modal-close" onclick="closeEmailModal()" title="關閉">&times;</button>
+        </div>
+        <div class="email-modal-body" id="email-modal-body">
+          <div class="email-loading">
+            <div class="spinner"></div>
+            <span>正在載入郵件內容...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 載入中遮罩 -->
     <div id="loading-overlay" class="loading-overlay">
       <div class="loading-content">
@@ -1748,13 +1909,11 @@
             ? index + 1 
             : (currentPage - 1) * pageSize + index + 1;
 
-          // 建構 Gmail 連結
+          // 建構郵件查看按鈕（改為彈窗方式）
           const emailLink = msgId 
-            ? `<a href="https://mail.google.com/mail/u/0/#all/${msgId}" 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
+            ? `<button onclick="showEmailContent('${msgId}')" 
                   class="email-link" 
-                  title="在 Gmail 中開啟此信件">📧</a>`
+                  title="查看郵件內容">📧</button>`
             : '';
 
           // ========== 桌面版表格 ==========
@@ -1860,6 +2019,64 @@
         const isExpanded = title.classList.toggle('expanded');
         title.classList.toggle('truncated', !isExpanded);
         btn.textContent = isExpanded ? '收合 ▲' : '顯示更多 ▼';
+      }
+
+      // ==========================================
+      // 郵件內容彈窗
+      // ==========================================
+      function showEmailContent(msgId) {
+        const overlay = document.getElementById('email-modal-overlay');
+        const body = document.getElementById('email-modal-body');
+        
+        // 顯示彈窗和載入中狀態
+        overlay.classList.add('active');
+        body.innerHTML = `
+          <div class="email-loading">
+            <div class="spinner"></div>
+            <span>正在載入郵件內容...</span>
+          </div>
+        `;
+        
+        // 呼叫後端取得郵件內容
+        google.script.run
+          .withSuccessHandler(function(result) {
+            if (result.success) {
+              // 將純文字轉換為安全的 HTML 顯示
+              const safeContent = escapeHtml(result.content);
+              body.innerHTML = `<div class="email-content">${safeContent}</div>`;
+            } else {
+              body.innerHTML = `
+                <div class="email-error">
+                  <div class="icon">⚠️</div>
+                  <p>${result.error || '無法載入郵件內容'}</p>
+                </div>
+              `;
+            }
+          })
+          .withFailureHandler(function(error) {
+            body.innerHTML = `
+              <div class="email-error">
+                <div class="icon">❌</div>
+                <p>載入失敗：${error.message || '未知錯誤'}</p>
+              </div>
+            `;
+          })
+          .getEmailContent(0, msgId);
+      }
+      
+      function closeEmailModal(event) {
+        // 如果點擊的是 overlay 背景或關閉按鈕，則關閉彈窗
+        if (!event || event.target.id === 'email-modal-overlay') {
+          document.getElementById('email-modal-overlay').classList.remove('active');
+        }
+      }
+      
+      // HTML 轉義函數（防止 XSS）
+      function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
       }
 
       function updatePagination() {
