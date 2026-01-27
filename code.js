@@ -11,7 +11,8 @@
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('Dashboard')
     .setTitle('資安預警即時儀表板')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
 }
 
 function getSystemSettings() {

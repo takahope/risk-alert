@@ -853,6 +853,375 @@
         color: #666;
         font-size: 14px;
       }
+
+      /* ==========================================
+         響應式設計 - 移動端優化
+         ========================================== */
+      
+      /* Tablet: 768px - 1024px */
+      @media (max-width: 1024px) {
+        body {
+          padding: 15px;
+        }
+
+        .settings-panel {
+          flex-direction: column;
+          align-items: stretch;
+        }
+
+        .switches-container {
+          justify-content: center;
+        }
+
+        .settings-panel > div:last-child {
+          width: 100%;
+        }
+
+        .settings-panel .btn {
+          width: 100%;
+          justify-content: center;
+        }
+
+        .filter-body {
+          gap: 15px;
+        }
+
+        .filter-group {
+          flex: 1;
+          min-width: 140px;
+        }
+
+        .filter-actions {
+          width: 100%;
+          margin-left: 0;
+          margin-top: 10px;
+        }
+      }
+
+      /* Mobile: < 768px */
+      @media (max-width: 768px) {
+        body {
+          padding: 10px;
+        }
+
+        h1 {
+          font-size: 20px;
+        }
+
+        header {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 8px;
+        }
+
+        /* 設定面板 - 移動端 */
+        .settings-panel {
+          padding: 12px;
+          gap: 12px;
+        }
+
+        .switches-container {
+          flex-direction: column;
+          gap: 12px;
+          width: 100%;
+        }
+
+        .setting-item {
+          justify-content: space-between;
+          padding: 8px 0;
+          border-bottom: 1px solid #eee;
+        }
+
+        .setting-item:last-child {
+          border-bottom: none;
+        }
+
+        /* 統計卡片 - 移動端 */
+        .stats-container {
+          grid-template-columns: repeat(2, 1fr);
+          gap: 10px;
+        }
+
+        .stat-card {
+          min-height: 90px;
+          padding: 12px;
+        }
+
+        .stat-card .value {
+          font-size: 24px;
+        }
+
+        .stat-card .label {
+          font-size: 11px;
+        }
+
+        .stat-card.chart-card {
+          grid-column: span 2;
+        }
+
+        /* 篩選工具列 - 移動端預設收合 */
+        .filter-body {
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .filter-group {
+          width: 100%;
+        }
+
+        .filter-group input[type="date"],
+        .filter-group select {
+          width: 100%;
+          min-width: unset;
+        }
+
+        .quick-filters {
+          width: 100%;
+          justify-content: space-between;
+        }
+
+        .quick-filters .btn {
+          flex: 1;
+          padding: 8px 4px;
+          font-size: 12px;
+        }
+
+        .status-checkboxes {
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+
+        .filter-actions {
+          flex-direction: column;
+          width: 100%;
+          gap: 8px;
+        }
+
+        .filter-actions .btn {
+          width: 100%;
+          justify-content: center;
+        }
+
+        /* 表格卡片 - 移動端 */
+        .card-header {
+          padding: 10px 12px;
+        }
+
+        .card-header h3 {
+          font-size: 13px;
+        }
+
+        /* 隱藏桌面版表格，顯示卡片 */
+        .table-wrapper {
+          display: none;
+        }
+
+        .mobile-cards {
+          display: block;
+          max-height: 500px;
+          overflow-y: auto;
+          padding: 10px;
+        }
+
+        .mobile-card {
+          background: white;
+          border: 1px solid #e0e0e0;
+          border-radius: 8px;
+          padding: 12px;
+          margin-bottom: 10px;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+
+        .mobile-card:last-child {
+          margin-bottom: 0;
+        }
+
+        .mobile-card-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 8px;
+          padding-bottom: 8px;
+          border-bottom: 1px solid #f0f0f0;
+        }
+
+        .mobile-card-header .tag {
+          font-size: 11px;
+          padding: 3px 6px;
+        }
+
+        .mobile-card-date {
+          font-size: 11px;
+          color: #666;
+        }
+
+        .mobile-card-title {
+          font-size: 14px;
+          font-weight: 500;
+          color: #333;
+          line-height: 1.4;
+          margin-bottom: 8px;
+          word-break: break-word;
+        }
+
+        .mobile-card-title.truncated {
+          display: -webkit-box;
+          -webkit-line-clamp: 3;
+          line-clamp: 3;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+
+        .mobile-card-title.expanded {
+          display: block;
+          -webkit-line-clamp: unset;
+          line-clamp: unset;
+        }
+
+        .mobile-card-asset {
+          font-size: 13px;
+          color: #1a73e8;
+          font-weight: 500;
+          margin-bottom: 4px;
+        }
+
+        .mobile-card-action {
+          font-size: 12px;
+          color: #666;
+          margin-bottom: 10px;
+        }
+
+        .mobile-card-footer {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 8px;
+          padding-top: 8px;
+          border-top: 1px solid #f0f0f0;
+        }
+
+        .mobile-card-actions {
+          display: flex;
+          gap: 8px;
+          align-items: center;
+        }
+
+        .mobile-card-actions .email-link {
+          font-size: 18px;
+          padding: 6px;
+        }
+
+        .mobile-card-operator {
+          font-size: 11px;
+          color: #888;
+        }
+
+        /* 移動端使用狀態按鈕 */
+        .mobile-usage-btns {
+          display: flex;
+          gap: 6px;
+        }
+
+        .mobile-usage-btns .usage-btn {
+          padding: 8px 12px;
+          font-size: 11px;
+          min-width: 70px;
+        }
+
+        .mobile-usage-status {
+          font-size: 12px;
+        }
+
+        /* 分頁控制 - 移動端 */
+        .pagination {
+          flex-wrap: wrap;
+          gap: 8px;
+          padding: 12px;
+        }
+
+        .page-size-selector {
+          width: 100%;
+          justify-content: center;
+          order: 3;
+          font-size: 12px;
+        }
+
+        .pagination button {
+          padding: 10px 16px;
+          font-size: 14px;
+          min-height: 44px;
+        }
+
+        .pagination .page-info {
+          font-size: 12px;
+        }
+
+        /* 確認對話框 - 移動端 */
+        .confirm-dialog {
+          max-width: 90%;
+          padding: 20px;
+          margin: 10px;
+        }
+
+        .confirm-dialog h4 {
+          font-size: 16px;
+        }
+
+        .confirm-dialog p {
+          font-size: 13px;
+        }
+
+        .confirm-dialog .dialog-actions {
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .confirm-dialog .btn-cancel,
+        .confirm-dialog .btn-confirm {
+          width: 100%;
+          padding: 12px;
+          min-height: 44px;
+        }
+
+        /* 觸控友善 - 增大點擊區域 */
+        .switch {
+          width: 50px;
+          height: 26px;
+        }
+
+        .slider:before {
+          height: 22px;
+          width: 22px;
+        }
+
+        input:checked + .slider:before {
+          transform: translateX(24px);
+        }
+
+        /* 展開按鈕 - 移動端 */
+        .mobile-expand-btn {
+          color: var(--primary-color);
+          font-size: 12px;
+          cursor: pointer;
+          margin-top: 4px;
+          display: inline-block;
+        }
+      }
+
+      /* 非移動端隱藏卡片容器 */
+      .mobile-cards {
+        display: none;
+      }
+
+      @media (min-width: 769px) {
+        .mobile-cards {
+          display: none !important;
+        }
+        .table-wrapper {
+          display: block !important;
+        }
+      }
     </style>
   </head>
   <body>
@@ -1037,9 +1406,13 @@
               </tr>
             </thead>
             <tbody id="data-body">
-              <tr><td colspan="7" style="text-align:center; padding:20px;">資料載入中...</td></tr>
+              <tr><td colspan="8" style="text-align:center; padding:20px;">資料載入中...</td></tr>
             </tbody>
           </table>
+        </div>
+        <!-- 移動端卡片視圖 -->
+        <div class="mobile-cards" id="mobile-cards">
+          <div style="text-align:center; padding:20px; color:#666;">資料載入中...</div>
         </div>
         <!-- 分頁控制 -->
         <div class="pagination">
@@ -1344,10 +1717,13 @@
       // ==========================================
       function renderTable() {
         const tbody = document.getElementById('data-body');
+        const mobileCards = document.getElementById('mobile-cards');
         tbody.innerHTML = '';
+        mobileCards.innerHTML = '';
 
         if (filteredData.length === 0) {
           tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px;">目前尚無符合條件的紀錄</td></tr>';
+          mobileCards.innerHTML = '<div style="text-align:center; padding:30px; color:#666;">目前尚無符合條件的紀錄</div>';
           document.getElementById('showing-count').textContent = '0';
           return;
         }
@@ -1372,15 +1748,27 @@
           if (status === 'ALERT') { tagClass = 'tag-alert'; statusText = '⚠️ 風險'; }
           else if (status === 'ERROR') { tagClass = 'tag-error'; statusText = '錯誤'; }
 
-          // 未使用狀態顯示
+          const dataIndex = filteredData.indexOf(row);
+          const globalIndex = pageSize === 'all' 
+            ? index + 1 
+            : (currentPage - 1) * pageSize + index + 1;
+
+          // 建構 Gmail 連結
+          const emailLink = msgId 
+            ? `<a href="https://mail.google.com/mail/u/0/#all/${msgId}" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  class="email-link" 
+                  title="在 Gmail 中開啟此信件">📧</a>`
+            : '';
+
+          // ========== 桌面版表格 ==========
           let usageStatus = '';
           if (notInUse === '未使用') {
             usageStatus = '<span class="tag" style="background:#fff3e0; color:#e65100;">🚫 未使用</span>';
           } else if (notInUse === '已處理') {
             usageStatus = '<span class="tag" style="background:#e6f4ea; color:#188038;">✅ 已處理</span>';
           } else {
-            // 無資料時顯示兩個按鈕
-            const dataIndex = filteredData.indexOf(row);
             usageStatus = `
               <div class="usage-btn-group">
                 <button class="usage-btn usage-btn-notuse" onclick="confirmUsageStatus(${dataIndex}, '未使用', this)" title="標記此資產為未使用，狀態將變更為安全">
@@ -1393,19 +1781,8 @@
             `;
           }
 
-          // 操作者顯示 (取 email 的使用者名稱部分)
           const operatorDisplay = operator ? `<small title="${operator}">${operator.split('@')[0]}</small>` : '<small style="color:#999;">-</small>';
 
-          // 建構 Gmail 連結 (使用 Gmail 內部 ID 直接開啟)
-          const emailLink = msgId 
-            ? `<a href="https://mail.google.com/mail/u/0/#all/${msgId}" 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  class="email-link" 
-                  title="在 Gmail 中開啟此信件">📧</a>`
-            : '';
-
-          // 警訊名稱顯示 (可展開)
           const warningDisplay = warningName && warningName.length > 60 
             ? `<div class="expandable-text">
                 <div class="text-content">${warningName}</div>
@@ -1419,10 +1796,6 @@
               </div>`
             : (warningName ? `<span>${warningName}</span> ${emailLink}` : '-');
 
-          const globalIndex = pageSize === 'all' 
-            ? index + 1 
-            : (currentPage - 1) * pageSize + index + 1;
-
           const tr = document.createElement('tr');
           tr.innerHTML = `
             <td>${globalIndex}</td>
@@ -1435,7 +1808,63 @@
             <td>${operatorDisplay}</td>
           `;
           tbody.appendChild(tr);
+
+          // ========== 移動端卡片 ==========
+          let mobileUsageStatus = '';
+          if (notInUse === '未使用') {
+            mobileUsageStatus = '<span class="mobile-usage-status" style="background:#fff3e0; color:#e65100; padding:4px 8px; border-radius:4px; font-size:12px;">🚫 未使用</span>';
+          } else if (notInUse === '已處理') {
+            mobileUsageStatus = '<span class="mobile-usage-status" style="background:#e6f4ea; color:#188038; padding:4px 8px; border-radius:4px; font-size:12px;">✅ 已處理</span>';
+          } else {
+            mobileUsageStatus = `
+              <div class="mobile-usage-btns">
+                <button class="usage-btn usage-btn-notuse" onclick="confirmUsageStatus(${dataIndex}, '未使用', this)">
+                  🚫 未使用
+                </button>
+                <button class="usage-btn usage-btn-done" onclick="confirmUsageStatus(${dataIndex}, '已處理', this)">
+                  ✅ 已處理
+                </button>
+              </div>
+            `;
+          }
+
+          const operatorName = operator ? operator.split('@')[0] : '-';
+          const truncatedWarning = warningName && warningName.length > 100;
+          const cardId = `card-${globalIndex}`;
+
+          const card = document.createElement('div');
+          card.className = 'mobile-card';
+          card.id = cardId;
+          card.innerHTML = `
+            <div class="mobile-card-header">
+              <span class="tag ${tagClass}">${statusText}</span>
+              <span class="mobile-card-date">${emailDate ? emailDate.split(' ')[0] : '-'}</span>
+            </div>
+            <div class="mobile-card-title ${truncatedWarning ? 'truncated' : ''}" id="title-${cardId}">
+              ${warningName || '-'}
+            </div>
+            ${truncatedWarning ? `<span class="mobile-expand-btn" onclick="toggleMobileExpand('${cardId}')">顯示更多 ▼</span>` : ''}
+            <div class="mobile-card-asset">📦 ${asset || 'N/A'}</div>
+            <div class="mobile-card-action">${action || '-'}</div>
+            <div class="mobile-card-footer">
+              <div class="mobile-card-actions">
+                ${emailLink}
+                ${mobileUsageStatus}
+              </div>
+              <div class="mobile-card-operator">👤 ${operatorName}</div>
+            </div>
+          `;
+          mobileCards.appendChild(card);
         });
+      }
+
+      // 移動端展開/收合
+      function toggleMobileExpand(cardId) {
+        const title = document.getElementById('title-' + cardId);
+        const btn = document.querySelector('#' + cardId + ' .mobile-expand-btn');
+        const isExpanded = title.classList.toggle('expanded');
+        title.classList.toggle('truncated', !isExpanded);
+        btn.textContent = isExpanded ? '收合 ▲' : '顯示更多 ▼';
       }
 
       function updatePagination() {
