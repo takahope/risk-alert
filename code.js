@@ -140,9 +140,19 @@ function processSingleMessage(message, assetList, settings) {
   if (threadMessageCount > 1) {
     // 取得最新的訊息（最後一封）
     const latestMessage = allMessages[allMessages.length - 1];
-    const latestBody = latestMessage.getPlainBody();
-    if (latestBody.includes('未使用')) {
-      notInUse = '未使用';
+    const latestSender = latestMessage.getFrom();
+    
+    // 檢查回覆者是否為原始篩選的寄件者（若是則略過）
+    const isFromOriginalSender = CONFIG.SENDER_B_EMAILS.some(email => 
+      latestSender.toLowerCase().includes(email.toLowerCase())
+    );
+    
+    // 只有當回覆者不是原始寄件者時，才檢查「未使用」
+    if (!isFromOriginalSender) {
+      const latestBody = latestMessage.getPlainBody();
+      if (latestBody.includes('未使用')) {
+        notInUse = '未使用';
+      }
     }
   }
   
