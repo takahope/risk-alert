@@ -136,8 +136,11 @@ function processSingleMessage(message, assetList, settings) {
     return; 
   }
 
+  // [修改] 同時搜尋「警訊名稱」和「整個郵件正文」
+  const bodyLower = body.toLowerCase();
   const matchedAsset = assetList.find(asset => 
-    warningName.toLowerCase().includes(asset.toLowerCase())
+    warningName.toLowerCase().includes(asset.toLowerCase()) || 
+    bodyLower.includes(asset.toLowerCase())
   );
 
   if (matchedAsset) {
