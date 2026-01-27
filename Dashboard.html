@@ -744,10 +744,111 @@
         border: 1px solid var(--border-color);
         border-radius: 4px;
       }
+
+      /* 權限限制遮罩 */
+      .unauthorized-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.98);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+      }
+
+      .unauthorized-content {
+        text-align: center;
+        padding: 40px;
+        max-width: 400px;
+      }
+
+      .unauthorized-content .icon {
+        font-size: 64px;
+        margin-bottom: 20px;
+      }
+
+      .unauthorized-content h2 {
+        color: var(--danger-color);
+        margin: 0 0 15px 0;
+        font-size: 24px;
+      }
+
+      .unauthorized-content p {
+        color: #666;
+        margin: 0 0 10px 0;
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      .unauthorized-content .email-info {
+        background: #f5f5f5;
+        padding: 10px 15px;
+        border-radius: 6px;
+        margin-top: 20px;
+        font-size: 13px;
+        color: #333;
+      }
+
+      /* 載入中遮罩 */
+      .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.95);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9998;
+      }
+
+      .loading-content {
+        text-align: center;
+      }
+
+      .loading-spinner {
+        width: 50px;
+        height: 50px;
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid var(--primary-color);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 15px;
+      }
+
+      .loading-content p {
+        color: #666;
+        font-size: 14px;
+      }
     </style>
   </head>
   <body>
-    <div class="container">
+    <!-- 載入中遮罩 -->
+    <div id="loading-overlay" class="loading-overlay">
+      <div class="loading-content">
+        <div class="loading-spinner"></div>
+        <p>正在驗證權限...</p>
+      </div>
+    </div>
+
+    <!-- 無權限遮罩 -->
+    <div id="unauthorized-overlay" class="unauthorized-overlay" style="display: none;">
+      <div class="unauthorized-content">
+        <div class="icon">🚫</div>
+        <h2>存取被拒絕</h2>
+        <p id="unauthorized-message">您沒有權限使用此系統</p>
+        <p>請聯繫系統管理員以取得存取權限。</p>
+        <div class="email-info">
+          您的帳號：<strong id="user-email">-</strong>
+        </div>
+      </div>
+    </div>
+
+    <div class="container" id="main-container" style="display: none;">
       <header>
         <h1>🛡️ 資安預警控制台</h1>
         <div class="status-bar">
@@ -942,8 +1043,33 @@
       // ==========================================
       // 初始化
       // ==========================================
-      window.onload = refreshAll;
-      setInterval(loadData, 60000); // 每 60 秒自動更新
+      window.onload = checkAuthorization;
+
+      function checkAuthorization() {
+        google.script.run
+          .withSuccessHandler(function(result) {
+            document.getElementById('loading-overlay').style.display = 'none';
+            
+            if (result.authorized) {
+              // 有權限，顯示主內容
+              document.getElementById('main-container').style.display = 'block';
+              refreshAll();
+              setInterval(loadData, 60000); // 每 60 秒自動更新
+            } else {
+              // 無權限，顯示拒絕訊息
+              document.getElementById('unauthorized-message').textContent = result.message;
+              document.getElementById('user-email').textContent = result.email || '無法取得';
+              document.getElementById('unauthorized-overlay').style.display = 'flex';
+            }
+          })
+          .withFailureHandler(function(err) {
+            document.getElementById('loading-overlay').style.display = 'none';
+            document.getElementById('unauthorized-message').textContent = '權限驗證失敗: ' + err.message;
+            document.getElementById('user-email').textContent = '-';
+            document.getElementById('unauthorized-overlay').style.display = 'flex';
+          })
+          .checkUserAuthorization();
+      }
 
       function refreshAll() {
         loadSettings();

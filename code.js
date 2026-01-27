@@ -334,8 +334,54 @@ function ensureSettingsSheetExists() {
   let settingSheet = ss.getSheetByName(CONFIG.SETTINGS_SHEET_NAME);
   if (!settingSheet) {
     settingSheet = ss.insertSheet(CONFIG.SETTINGS_SHEET_NAME);
-    settingSheet.appendRow(['掃描已讀信件 (A2)', '開啟自動草稿 (B2)', '開啟Chat通知 (C2)']);
-    settingSheet.appendRow(['否', '是', '是']);
+    settingSheet.appendRow(['掃描已讀信件 (A2)', '開啟自動草稿 (B2)', '開啟Chat通知 (C2)', '授權使用者 (D欄)']);
+    settingSheet.appendRow(['否', '是', '是', '']);
+  }
+}
+
+/**
+ * 檢查當前使用者是否有權限
+ * @returns {Object} { authorized: boolean, email: string, message: string }
+ */
+function checkUserAuthorization() {
+  try {
+    const userEmail = Session.getActiveUser().getEmail() || Session.getEffectiveUser().getEmail();
+    
+    if (!userEmail) {
+      return { authorized: false, email: '', message: '無法取得使用者資訊' };
+    }
+    
+    const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.SETTINGS_SHEET_NAME);
+    if (!sheet) {
+      return { authorized: false, email: userEmail, message: '無法讀取設定' };
+    }
+    
+    // 讀取 D 欄所有授權使用者
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) {
+      return { authorized: false, email: userEmail, message: '尚未設定授權使用者' };
+    }
+    
+    const authorizedUsers = sheet.getRange(2, 4, lastRow - 1, 1).getDisplayValues()
+      .flat()
+      .map(email => email.trim().toLowerCase())
+      .filter(email => email.length > 0);
+    
+    // 如果 D 欄為空，允許所有使用者
+    if (authorizedUsers.length === 0) {
+      return { authorized: true, email: userEmail, message: '歡迎使用' };
+    }
+    
+    const isAuthorized = authorizedUsers.includes(userEmail.toLowerCase());
+    
+    return {
+      authorized: isAuthorized,
+      email: userEmail,
+      message: isAuthorized ? '歡迎使用' : '您沒有權限使用此系統'
+    };
+  } catch (e) {
+    console.error('權限檢查失敗: ' + e.message);
+    return { authorized: false, email: '', message: '權限檢查失敗: ' + e.message };
   }
 }
 
@@ -344,8 +390,8 @@ function ensureLogSheetExists() {
   let sheet = ss.getSheetByName(CONFIG.LOG_SHEET_NAME);
   if (!sheet) {
     sheet = ss.insertSheet(CONFIG.LOG_SHEET_NAME);
-    // [修改] 新增 'Has Reply' 和 'Not In Use' 標題
-    sheet.appendRow(['Timestamp', 'Status', 'Warning Name', 'Matched Asset', 'Action', 'Email Date', 'Message ID', 'Has Reply', 'Not In Use']);
+    // [修改] 新增 'Has Reply', 'Not In Use', 'Operator' 標題
+    sheet.appendRow(['Timestamp', 'Status', 'Warning Name', 'Matched Asset', 'Action', 'Email Date', 'Message ID', 'Has Reply', 'Not In Use', 'Operator']);
     sheet.setFrozenRows(1);
   }
 }
