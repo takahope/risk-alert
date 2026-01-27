@@ -627,6 +627,11 @@
         to { transform: translateY(0); opacity: 1; }
       }
 
+      @keyframes slideIn {
+        from { transform: translateX(100px); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+      }
+
       .confirm-dialog h4 {
         margin: 0 0 12px 0;
         font-size: 18px;
@@ -1538,9 +1543,22 @@
                 cells[6].innerHTML = '<span class="tag" style="background:#e6f4ea; color:#188038;">✅ 已處理</span>';
               }
               
-              // 更新操作者欄
-              if (result.operator) {
+              // 更新操作者欄 - 顯示完整名稱或僅 email
+              if (result.displayName) {
+                const shortName = result.displayName.split(' (')[0] || result.operator.split('@')[0];
+                cells[7].innerHTML = `<small title="${result.displayName}">${shortName}</small>`;
+              } else if (result.operator) {
                 cells[7].innerHTML = `<small title="${result.operator}">${result.operator.split('@')[0]}</small>`;
+              }
+              
+              // 顯示草稿建立結果
+              if (result.draftCreated) {
+                // 短暫顯示成功提示
+                const toast = document.createElement('div');
+                toast.style.cssText = 'position:fixed;top:20px;right:20px;background:#188038;color:white;padding:12px 20px;border-radius:8px;z-index:10000;box-shadow:0 4px 12px rgba(0,0,0,0.15);animation:slideIn 0.3s ease;';
+                toast.innerHTML = '✅ 已更新狀態並建立草稿';
+                document.body.appendChild(toast);
+                setTimeout(() => toast.remove(), 3000);
               }
               
               updateStats();

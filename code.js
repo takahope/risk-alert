@@ -49,11 +49,20 @@ function updateUsageStatus(rowIndex, usageStatus) {
     // rowIndex 是從 0 開始的資料索引，加上標題列後變成實際列號
     const actualRow = rowIndex + 2;
     
+    // 讀取該列的資料（Warning Name, Message ID）
+    const rowData = sheet.getRange(actualRow, 1, 1, 10).getDisplayValues()[0];
+    const warningName = rowData[2];  // C 欄
+    const matchedAsset = rowData[3]; // D 欄
+    const messageId = rowData[6];    // G 欄
+    
     // 更新 I 欄 (使用狀態)
     sheet.getRange(actualRow, 9).setValue(usageStatus);
     
-    // 更新 J 欄 (操作者)
+    // 取得操作者資訊
     const userEmail = Session.getActiveUser().getEmail() || Session.getEffectiveUser().getEmail() || '未知使用者';
+    const userInfo = getUserDisplayName(userEmail);
+    
+    // 更新 J 欄 (操作者)
     sheet.getRange(actualRow, 10).setValue(userEmail);
     
     // 無論是「未使用」或「已處理」，都將 B 欄狀態從 ALERT 改為 SAFE
@@ -62,10 +71,61 @@ function updateUsageStatus(rowIndex, usageStatus) {
       sheet.getRange(actualRow, 2).setValue('SAFE');
     }
     
-    return { success: true, operator: userEmail };
+    // 檢查是否啟用自動草稿
+    const settings = getSystemSettings();
+    let draftCreated = false;
+    
+    if (settings.autoDraft && messageId) {
+      // 嘗試透過 Message ID 找到原始郵件
+      const originalMessage = findMessageById(messageId);
+      const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
+      
+      if (usageStatus === '未使用') {
+        draftCreated = createDraftForNotInUse(warningName, matchedAsset, userInfo, originalMessage, settings);
+      } else if (usageStatus === '已處理') {
+        draftCreated = createDraftForProcessed(warningName, matchedAsset, userInfo, timestamp, originalMessage, settings);
+      }
+      
+      // 更新 E 欄 (Action) 加上草稿資訊
+      if (draftCreated) {
+        const currentAction = sheet.getRange(actualRow, 5).getValue();
+        const newAction = currentAction + ` | ${usageStatus}草稿已建立`;
+        sheet.getRange(actualRow, 5).setValue(newAction);
+      }
+    }
+    
+    return { success: true, operator: userEmail, displayName: userInfo.displayName, draftCreated: draftCreated };
   } catch (e) {
     console.error('更新使用狀態失敗: ' + e.message);
     return { success: false, error: e.message };
+  }
+}
+
+/**
+ * 透過 Message ID 查找原始郵件
+ * @param {string} messageId - Gmail Message ID
+ * @returns {GmailMessage|null}
+ */
+function findMessageById(messageId) {
+  try {
+    if (!messageId) return null;
+    
+    // 使用 rfc822msgid 搜尋
+    const threads = GmailApp.search('rfc822msgid:' + messageId);
+    if (threads.length > 0) {
+      const messages = threads[0].getMessages();
+      for (const msg of messages) {
+        if (msg.getId() === messageId) {
+          return msg;
+        }
+      }
+      // 如果找不到完全匹配的，回傳第一封
+      return messages[0];
+    }
+    return null;
+  } catch (e) {
+    console.error('查找郵件失敗: ' + e.message);
+    return null;
   }
 }
 
@@ -334,8 +394,48 @@ function ensureSettingsSheetExists() {
   let settingSheet = ss.getSheetByName(CONFIG.SETTINGS_SHEET_NAME);
   if (!settingSheet) {
     settingSheet = ss.insertSheet(CONFIG.SETTINGS_SHEET_NAME);
-    settingSheet.appendRow(['掃描已讀信件 (A2)', '開啟自動草稿 (B2)', '開啟Chat通知 (C2)', '授權使用者 (D欄)']);
-    settingSheet.appendRow(['否', '是', '是', '']);
+    settingSheet.appendRow(['掃描已讀信件 (A2)', '開啟自動草稿 (B2)', '開啟Chat通知 (C2)', '授權使用者 (D欄)', '使用者姓名 (E欄)']);
+    settingSheet.appendRow(['否', '是', '是', '', '']);
+  }
+}
+
+/**
+ * 取得使用者顯示名稱（姓名 + email）
+ * @param {string} email - 使用者 email
+ * @returns {Object} { displayName: string, name: string, email: string }
+ */
+function getUserDisplayName(email) {
+  try {
+    const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.SETTINGS_SHEET_NAME);
+    if (!sheet) {
+      return { displayName: email, name: '', email: email };
+    }
+    
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) {
+      return { displayName: email, name: '', email: email };
+    }
+    
+    // 讀取 D 欄 (email) 和 E 欄 (姓名)
+    const userData = sheet.getRange(2, 4, lastRow - 1, 2).getDisplayValues();
+    
+    for (let i = 0; i < userData.length; i++) {
+      const userEmail = userData[i][0].trim().toLowerCase();
+      const userName = userData[i][1].trim();
+      
+      if (userEmail === email.toLowerCase() && userName) {
+        return {
+          displayName: `${userName} (${email})`,
+          name: userName,
+          email: email
+        };
+      }
+    }
+    
+    return { displayName: email, name: '', email: email };
+  } catch (e) {
+    console.error('取得使用者名稱失敗: ' + e.message);
+    return { displayName: email, name: '', email: email };
   }
 }
 
@@ -453,7 +553,94 @@ function createDraftReplyToSenderB(warningName, originalMessage, settings) {
     sendToChat(`✅ **[無相關資產] 已建立回覆草稿**\n警訊名稱：${warningName}`);
   }
 }
+/**
+ * 建立「未使用」情境的回覆草稿
+ * @param {string} warningName - 警訊名稱
+ * @param {string} matchedAsset - 命中資產
+ * @param {Object} userInfo - 操作者資訊
+ * @param {GmailMessage|null} originalMessage - 原始郵件
+ * @param {Object} settings - 系統設定
+ * @returns {boolean} 是否成功建立草稿
+ */
+function createDraftForNotInUse(warningName, matchedAsset, userInfo, originalMessage, settings) {
+  try {
+    const replyBody = `
+您好，
 
+已收到漏洞預警通知：
+「${warningName}」
+
+經人工確認，相關資產「${matchedAsset}」無需處理。
+感謝通知。
+
+處理人員：${userInfo.displayName}
+    `.trim();
+    
+    if (originalMessage) {
+      // 在原始執行緒建立回覆草稿
+      originalMessage.getThread().createDraftReply(replyBody);
+    } else {
+      // 無法找到原始郵件，建立獨立草稿
+      const subject = `[無需處理] ${warningName}`;
+      GmailApp.createDraft(CONFIG.SENDER_B_EMAILS[0] || '', subject, replyBody);
+    }
+    
+    if (settings.chatNotify) {
+      sendToChat(`🚫 **[未使用] 已建立回覆草稿**\n警訊：${warningName}\n資產：${matchedAsset}\n處理者：${userInfo.displayName}`);
+    }
+    
+    return true;
+  } catch (e) {
+    console.error('建立未使用草稿失敗: ' + e.message);
+    return false;
+  }
+}
+
+/**
+ * 建立「已處理」情境的通知草稿
+ * @param {string} warningName - 警訊名稱
+ * @param {string} matchedAsset - 命中資產
+ * @param {Object} userInfo - 操作者資訊
+ * @param {string} timestamp - 處理時間
+ * @param {GmailMessage|null} originalMessage - 原始郵件
+ * @param {Object} settings - 系統設定
+ * @returns {boolean} 是否成功建立草稿
+ */
+function createDraftForProcessed(warningName, matchedAsset, userInfo, timestamp, originalMessage, settings) {
+  try {
+    const replyBody = `
+您好，
+
+關於漏洞預警通知：
+「${warningName}」
+
+經評估確認影響範圍，相關資產「${matchedAsset}」已完成必要之風險處置措施。
+
+處理人員：${userInfo.displayName}
+處理時間：${timestamp}
+
+如有任何問題，請隨時聯繫。
+    `.trim();
+    
+    if (originalMessage) {
+      // 在原始執行緒建立回覆草稿
+      originalMessage.getThread().createDraftReply(replyBody);
+    } else {
+      // 無法找到原始郵件，建立獨立草稿
+      const subject = `[已處理] ${warningName}`;
+      GmailApp.createDraft(CONFIG.SENDER_B_EMAILS[0] || '', subject, replyBody);
+    }
+    
+    if (settings.chatNotify) {
+      sendToChat(`✅ **[已處理] 已建立通知草稿**\n警訊：${warningName}\n資產：${matchedAsset}\n處理者：${userInfo.displayName}\n時間：${timestamp}`);
+    }
+    
+    return true;
+  } catch (e) {
+    console.error('建立已處理草稿失敗: ' + e.message);
+    return false;
+  }
+}
 function sendToChat(text) {
   if (!CONFIG.GOOGLE_CHAT_WEBHOOK_URL || CONFIG.GOOGLE_CHAT_WEBHOOK_URL.includes('YOUR_KEY')) {
     console.log("模擬 Chat 通知: " + text);
