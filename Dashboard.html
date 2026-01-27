@@ -5,13 +5,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>資安預警即時儀表板</title>
+    <!-- SheetJS for Excel export -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <style>
       :root {
         --primary-color: #1a73e8;
         --danger-color: #d93025;
         --success-color: #188038;
+        --warning-color: #f9ab00;
         --bg-color: #f8f9fa;
         --card-bg: #ffffff;
+        --border-color: #e0e0e0;
       }
       
       body {
@@ -23,7 +27,7 @@
       }
 
       .container {
-        max-width: 1000px;
+        max-width: 1200px;
         margin: 0 auto;
       }
 
@@ -52,7 +56,7 @@
         gap: 20px;
         flex-wrap: wrap;
         align-items: center;
-        justify-content: space-between; /* 讓掃描按鈕靠右 */
+        justify-content: space-between;
       }
 
       .switches-container {
@@ -69,29 +73,57 @@
         font-weight: 500;
       }
 
-      /* Scan Button Style */
-      .btn-scan {
-        background-color: var(--primary-color);
-        color: white;
+      /* Button Styles */
+      .btn {
         border: none;
         padding: 10px 20px;
         border-radius: 4px;
         font-size: 14px;
         font-weight: 500;
         cursor: pointer;
-        transition: background-color 0.2s;
-        display: flex;
+        transition: all 0.2s;
+        display: inline-flex;
         align-items: center;
         gap: 5px;
       }
 
-      .btn-scan:hover {
+      .btn-primary {
+        background-color: var(--primary-color);
+        color: white;
+      }
+
+      .btn-primary:hover {
         background-color: #1557b0;
       }
 
-      .btn-scan:disabled {
+      .btn-success {
+        background-color: var(--success-color);
+        color: white;
+      }
+
+      .btn-success:hover {
+        background-color: #0d652d;
+      }
+
+      .btn:disabled {
         background-color: #ccc;
         cursor: not-allowed;
+      }
+
+      .btn-outline {
+        background-color: transparent;
+        border: 1px solid var(--border-color);
+        color: #5f6368;
+      }
+
+      .btn-outline:hover {
+        background-color: #f1f3f4;
+      }
+
+      .btn-outline.active {
+        background-color: var(--primary-color);
+        color: white;
+        border-color: var(--primary-color);
       }
 
       /* Toggle Switch CSS */
@@ -140,12 +172,246 @@
         transform: translateX(20px);
       }
 
+      /* 統計卡片區塊 */
+      .stats-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 15px;
+        margin-bottom: 20px;
+      }
+
+      .stat-card {
+        background: var(--card-bg);
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 1px 2px rgba(60,64,67,0.3);
+        text-align: center;
+        transition: transform 0.2s;
+      }
+
+      .stat-card:hover {
+        transform: translateY(-2px);
+      }
+
+      .stat-card .icon {
+        font-size: 24px;
+        margin-bottom: 8px;
+      }
+
+      .stat-card .value {
+        font-size: 32px;
+        font-weight: 700;
+        color: #202124;
+      }
+
+      .stat-card .label {
+        font-size: 13px;
+        color: #5f6368;
+        margin-top: 4px;
+      }
+
+      .stat-card.alert { border-left: 4px solid var(--danger-color); }
+      .stat-card.safe { border-left: 4px solid var(--success-color); }
+      .stat-card.error { border-left: 4px solid #333; }
+      .stat-card.total { border-left: 4px solid var(--primary-color); }
+
+      /* 篩選工具列 */
+      .filter-panel {
+        background: var(--card-bg);
+        border-radius: 8px;
+        box-shadow: 0 1px 2px rgba(60,64,67,0.3);
+        margin-bottom: 20px;
+        overflow: hidden;
+      }
+
+      .filter-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 15px;
+        background: #f1f3f4;
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .filter-header h3 {
+        margin: 0;
+        font-size: 14px;
+        color: #5f6368;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .filter-header .toggle-icon {
+        transition: transform 0.3s;
+      }
+
+      .filter-header.collapsed .toggle-icon {
+        transform: rotate(-90deg);
+      }
+
+      .filter-body {
+        padding: 15px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        align-items: flex-end;
+      }
+
+      .filter-body.hidden {
+        display: none;
+      }
+
+      .filter-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .filter-group label {
+        font-size: 12px;
+        font-weight: 500;
+        color: #5f6368;
+      }
+
+      .filter-group input[type="date"],
+      .filter-group select {
+        padding: 8px 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        font-size: 14px;
+        min-width: 150px;
+      }
+
+      .filter-group input[type="date"]:focus,
+      .filter-group select:focus {
+        outline: none;
+        border-color: var(--primary-color);
+      }
+
+      .quick-filters {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .status-checkboxes {
+        display: flex;
+        gap: 15px;
+      }
+
+      .status-checkboxes label {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 14px;
+        cursor: pointer;
+      }
+
+      .filter-actions {
+        display: flex;
+        gap: 10px;
+        margin-left: auto;
+      }
+
+      /* 資產分佈圖 */
+      .chart-container {
+        background: var(--card-bg);
+        border-radius: 8px;
+        box-shadow: 0 1px 2px rgba(60,64,67,0.3);
+        padding: 20px;
+        margin-bottom: 20px;
+      }
+
+      .chart-container h3 {
+        margin: 0 0 15px 0;
+        font-size: 14px;
+        color: #5f6368;
+      }
+
+      .bar-chart {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .bar-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .bar-label {
+        width: 180px;
+        font-size: 13px;
+        color: #333;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .bar-track {
+        flex: 1;
+        height: 20px;
+        background: #f1f3f4;
+        border-radius: 4px;
+        overflow: hidden;
+      }
+
+      .bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--danger-color), #ea8685);
+        border-radius: 4px;
+        transition: width 0.5s ease;
+      }
+
+      .bar-value {
+        width: 40px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #333;
+        text-align: right;
+      }
+
+      .no-chart-data {
+        text-align: center;
+        color: #999;
+        padding: 20px;
+        font-size: 14px;
+      }
+
       /* 表格樣式 */
       .card {
         background: var(--card-bg);
         border-radius: 8px;
         box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3);
         overflow: hidden;
+      }
+
+      .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 16px;
+        background: #f1f3f4;
+        border-bottom: 1px solid var(--border-color);
+      }
+
+      .card-header h3 {
+        margin: 0;
+        font-size: 14px;
+        color: #5f6368;
+      }
+
+      .record-count {
+        font-size: 13px;
+        color: #5f6368;
+      }
+
+      .table-wrapper {
+        max-height: 500px;
+        overflow-y: auto;
       }
 
       table {
@@ -164,6 +430,9 @@
         font-weight: 600;
         color: #5f6368;
         font-size: 13px;
+        position: sticky;
+        top: 0;
+        z-index: 1;
       }
 
       .tag {
@@ -183,6 +452,53 @@
         color: #666;
         margin-top: 5px;
       }
+
+      /* 分頁控制 */
+      .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        padding: 15px;
+        border-top: 1px solid var(--border-color);
+      }
+
+      .pagination button {
+        padding: 6px 12px;
+        border: 1px solid var(--border-color);
+        background: white;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 13px;
+      }
+
+      .pagination button:hover:not(:disabled) {
+        background: #f1f3f4;
+      }
+
+      .pagination button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .pagination .page-info {
+        font-size: 13px;
+        color: #5f6368;
+      }
+
+      .page-size-selector {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: #5f6368;
+      }
+
+      .page-size-selector select {
+        padding: 4px 8px;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+      }
     </style>
   </head>
   <body>
@@ -191,11 +507,11 @@
         <h1>🛡️ 資安預警控制台</h1>
         <div class="status-bar">
           最後更新: <span id="last-updated">--:--:--</span>
-          <button onclick="refreshAll()" style="margin-left:5px; cursor:pointer; border:none; background:none; color:blue;">⟳</button>
+          <button onclick="refreshAll()" style="margin-left:5px; cursor:pointer; border:none; background:none; color:blue; font-size:16px;">⟳</button>
         </div>
       </header>
 
-      <!-- 新增：功能開關控制面板 -->
+      <!-- 功能開關控制面板 -->
       <div class="settings-panel">
         <div class="switches-container">
           <div class="setting-item">
@@ -203,63 +519,182 @@
               <input type="checkbox" id="toggle-scanRead" onchange="updateSetting('scanRead')">
               <span class="slider"></span>
             </label>
-            <span>掃描已讀信件 (A2)</span>
+            <span>掃描已讀信件</span>
           </div>
           <div class="setting-item">
             <label class="switch">
               <input type="checkbox" id="toggle-autoDraft" onchange="updateSetting('autoDraft')">
               <span class="slider"></span>
             </label>
-            <span>開啟自動草稿 (B2)</span>
+            <span>開啟自動草稿</span>
           </div>
           <div class="setting-item">
             <label class="switch">
               <input type="checkbox" id="toggle-chatNotify" onchange="updateSetting('chatNotify')">
               <span class="slider"></span>
             </label>
-            <span>開啟 Chat 通知 (C2)</span>
+            <span>開啟 Chat 通知</span>
           </div>
         </div>
         
-        <!-- 新增：立即掃描按鈕 -->
         <div>
-          <button id="btn-scan" class="btn-scan" onclick="triggerScan()">
+          <button id="btn-scan" class="btn btn-primary" onclick="triggerScan()">
             🚀 立即掃描信件
           </button>
         </div>
       </div>
 
+      <!-- 統計卡片區塊 -->
+      <div class="stats-container">
+        <div class="stat-card total">
+          <div class="icon">📊</div>
+          <div class="value" id="stat-total">-</div>
+          <div class="label">總筆數</div>
+        </div>
+        <div class="stat-card alert">
+          <div class="icon">⚠️</div>
+          <div class="value" id="stat-alert">-</div>
+          <div class="label">風險警示</div>
+        </div>
+        <div class="stat-card safe">
+          <div class="icon">✅</div>
+          <div class="value" id="stat-safe">-</div>
+          <div class="label">安全無虞</div>
+        </div>
+        <div class="stat-card error">
+          <div class="icon">❌</div>
+          <div class="value" id="stat-error">-</div>
+          <div class="label">解析錯誤</div>
+        </div>
+      </div>
+
+      <!-- 篩選工具列 -->
+      <div class="filter-panel">
+        <div class="filter-header" onclick="toggleFilter()">
+          <h3><span>🔍</span> 篩選條件</h3>
+          <span class="toggle-icon">▼</span>
+        </div>
+        <div class="filter-body" id="filter-body">
+          <!-- 快速篩選 -->
+          <div class="filter-group">
+            <label>快速篩選</label>
+            <div class="quick-filters">
+              <button class="btn btn-outline active" data-range="all" onclick="setQuickFilter('all')">全部</button>
+              <button class="btn btn-outline" data-range="today" onclick="setQuickFilter('today')">今日</button>
+              <button class="btn btn-outline" data-range="week" onclick="setQuickFilter('week')">本週</button>
+              <button class="btn btn-outline" data-range="month" onclick="setQuickFilter('month')">本月</button>
+            </div>
+          </div>
+
+          <!-- 日期區間 -->
+          <div class="filter-group">
+            <label>開始日期</label>
+            <input type="date" id="filter-start-date" onchange="applyFilters()">
+          </div>
+          <div class="filter-group">
+            <label>結束日期</label>
+            <input type="date" id="filter-end-date" onchange="applyFilters()">
+          </div>
+
+          <!-- 狀態篩選 -->
+          <div class="filter-group">
+            <label>狀態篩選</label>
+            <div class="status-checkboxes">
+              <label><input type="checkbox" id="filter-alert" checked onchange="applyFilters()"> ⚠️ 風險</label>
+              <label><input type="checkbox" id="filter-safe" checked onchange="applyFilters()"> ✅ 安全</label>
+              <label><input type="checkbox" id="filter-error" checked onchange="applyFilters()"> ❌ 錯誤</label>
+            </div>
+          </div>
+
+          <!-- 資產篩選 -->
+          <div class="filter-group">
+            <label>命中資產</label>
+            <select id="filter-asset" onchange="applyFilters()">
+              <option value="">全部資產</option>
+            </select>
+          </div>
+
+          <!-- 操作按鈕 -->
+          <div class="filter-actions">
+            <button class="btn btn-outline" onclick="resetFilters()">重置篩選</button>
+            <button class="btn btn-success" onclick="exportToExcel()">📥 匯出 Excel</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 資產命中分佈圖 -->
+      <div class="chart-container">
+        <h3>📈 Top 5 命中資產分佈</h3>
+        <div class="bar-chart" id="asset-chart">
+          <div class="no-chart-data">載入中...</div>
+        </div>
+      </div>
+
+      <!-- 資料表格 -->
       <div class="card">
-        <table>
-          <thead>
-            <tr>
-              <!-- [修改] 新增 # 編號欄位 -->
-              <th width="5%">#</th>
-              <th width="10%">時間</th>
-              <th width="15%">信件時間</th>
-              <th width="10%">狀態</th>
-              <th width="35%">警訊名稱</th>
-              <th width="25%">命中資產 / 處理結果</th>
-            </tr>
-          </thead>
-          <tbody id="data-body">
-            <!-- [修改] colspan 改為 6 -->
-            <tr><td colspan="6" style="text-align:center; padding:20px;">資料載入中...</td></tr>
-          </tbody>
-        </table>
+        <div class="card-header">
+          <h3>📋 詳細紀錄</h3>
+          <span class="record-count">顯示 <span id="showing-count">0</span> / <span id="total-count">0</span> 筆</span>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th width="5%">#</th>
+                <th width="12%">處理時間</th>
+                <th width="12%">信件時間</th>
+                <th width="8%">狀態</th>
+                <th width="38%">警訊名稱</th>
+                <th width="25%">命中資產 / 處理結果</th>
+              </tr>
+            </thead>
+            <tbody id="data-body">
+              <tr><td colspan="6" style="text-align:center; padding:20px;">資料載入中...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <!-- 分頁控制 -->
+        <div class="pagination">
+          <div class="page-size-selector">
+            每頁顯示
+            <select id="page-size" onchange="changePageSize()">
+              <option value="20">20</option>
+              <option value="50" selected>50</option>
+              <option value="100">100</option>
+              <option value="all">全部</option>
+            </select>
+            筆
+          </div>
+          <button id="btn-prev" onclick="changePage(-1)" disabled>◀ 上一頁</button>
+          <span class="page-info">第 <span id="current-page">1</span> / <span id="total-pages">1</span> 頁</span>
+          <button id="btn-next" onclick="changePage(1)" disabled>下一頁 ▶</button>
+        </div>
       </div>
     </div>
 
     <script>
+      // ==========================================
+      // 全域變數
+      // ==========================================
+      let allData = [];           // 從後端取得的完整資料
+      let filteredData = [];      // 篩選後的資料
+      let currentPage = 1;
+      let pageSize = 50;
+
+      // ==========================================
+      // 初始化
+      // ==========================================
       window.onload = refreshAll;
-      // 每 30 秒自動更新數據 (不頻繁更新設定，以免干擾操作)
-      setInterval(loadData, 30000);
+      setInterval(loadData, 60000); // 每 60 秒自動更新
 
       function refreshAll() {
         loadSettings();
         loadData();
       }
 
+      // ==========================================
+      // 設定相關
+      // ==========================================
       function loadSettings() {
         google.script.run.withSuccessHandler(function(settings) {
           document.getElementById('toggle-scanRead').checked = settings.scanRead;
@@ -275,29 +710,229 @@
         }).updateSystemSetting(key, isEnabled);
       }
 
+      // ==========================================
+      // 資料載入與處理
+      // ==========================================
       function loadData() {
-        const tbody = document.getElementById('data-body');
-        const timeSpan = document.getElementById('last-updated');
-        
         google.script.run.withSuccessHandler(function(data) {
-          renderTable(data);
-          const now = new Date();
-          timeSpan.textContent = now.toTimeString().split(' ')[0];
+          allData = data || [];
+          populateAssetDropdown();
+          applyFilters();
+          updateLastUpdated();
         }).getDashboardData();
       }
 
-      function renderTable(data) {
-        const tbody = document.getElementById('data-body');
-        tbody.innerHTML = '';
+      function updateLastUpdated() {
+        const now = new Date();
+        document.getElementById('last-updated').textContent = now.toTimeString().split(' ')[0];
+      }
 
-        if (!data || data.length === 0) {
-          // [修改] colspan 改為 6
-          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px;">目前尚無紀錄</td></tr>';
+      // 填充資產下拉選單
+      function populateAssetDropdown() {
+        const assetSet = new Set();
+        allData.forEach(row => {
+          const asset = row[3];
+          if (asset && asset !== '無相關資產' && asset !== 'N/A') {
+            assetSet.add(asset);
+          }
+        });
+        
+        const select = document.getElementById('filter-asset');
+        const currentValue = select.value;
+        select.innerHTML = '<option value="">全部資產</option>';
+        
+        Array.from(assetSet).sort().forEach(asset => {
+          const option = document.createElement('option');
+          option.value = asset;
+          option.textContent = asset;
+          select.appendChild(option);
+        });
+        
+        select.value = currentValue;
+      }
+
+      // ==========================================
+      // 篩選功能
+      // ==========================================
+      function toggleFilter() {
+        const header = document.querySelector('.filter-header');
+        const body = document.getElementById('filter-body');
+        header.classList.toggle('collapsed');
+        body.classList.toggle('hidden');
+      }
+
+      function setQuickFilter(range) {
+        // 更新按鈕狀態
+        document.querySelectorAll('.quick-filters .btn').forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.range === range);
+        });
+
+        const today = new Date();
+        const startInput = document.getElementById('filter-start-date');
+        const endInput = document.getElementById('filter-end-date');
+
+        if (range === 'all') {
+          startInput.value = '';
+          endInput.value = '';
+        } else if (range === 'today') {
+          const dateStr = formatDateForInput(today);
+          startInput.value = dateStr;
+          endInput.value = dateStr;
+        } else if (range === 'week') {
+          const weekAgo = new Date(today);
+          weekAgo.setDate(weekAgo.getDate() - 7);
+          startInput.value = formatDateForInput(weekAgo);
+          endInput.value = formatDateForInput(today);
+        } else if (range === 'month') {
+          const monthAgo = new Date(today);
+          monthAgo.setMonth(monthAgo.getMonth() - 1);
+          startInput.value = formatDateForInput(monthAgo);
+          endInput.value = formatDateForInput(today);
+        }
+
+        applyFilters();
+      }
+
+      function formatDateForInput(date) {
+        return date.toISOString().split('T')[0];
+      }
+
+      function applyFilters() {
+        const startDate = document.getElementById('filter-start-date').value;
+        const endDate = document.getElementById('filter-end-date').value;
+        const showAlert = document.getElementById('filter-alert').checked;
+        const showSafe = document.getElementById('filter-safe').checked;
+        const showError = document.getElementById('filter-error').checked;
+        const assetFilter = document.getElementById('filter-asset').value;
+
+        filteredData = allData.filter(row => {
+          const [time, status, warningName, asset, action, emailDate] = row;
+          
+          // 狀態篩選
+          if (status === 'ALERT' && !showAlert) return false;
+          if (status === 'SAFE' && !showSafe) return false;
+          if (status === 'ERROR' && !showError) return false;
+
+          // 資產篩選
+          if (assetFilter && asset !== assetFilter) return false;
+
+          // 日期篩選 (使用信件時間)
+          if (startDate || endDate) {
+            const rowDate = emailDate ? emailDate.split(' ')[0] : '';
+            if (startDate && rowDate < startDate) return false;
+            if (endDate && rowDate > endDate) return false;
+          }
+
+          return true;
+        });
+
+        currentPage = 1;
+        updateStats();
+        updateChart();
+        renderTable();
+        updatePagination();
+      }
+
+      function resetFilters() {
+        document.getElementById('filter-start-date').value = '';
+        document.getElementById('filter-end-date').value = '';
+        document.getElementById('filter-alert').checked = true;
+        document.getElementById('filter-safe').checked = true;
+        document.getElementById('filter-error').checked = true;
+        document.getElementById('filter-asset').value = '';
+        
+        document.querySelectorAll('.quick-filters .btn').forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.range === 'all');
+        });
+        
+        applyFilters();
+      }
+
+      // ==========================================
+      // 統計更新
+      // ==========================================
+      function updateStats() {
+        const total = filteredData.length;
+        const alert = filteredData.filter(r => r[1] === 'ALERT').length;
+        const safe = filteredData.filter(r => r[1] === 'SAFE').length;
+        const error = filteredData.filter(r => r[1] === 'ERROR').length;
+
+        document.getElementById('stat-total').textContent = total;
+        document.getElementById('stat-alert').textContent = alert;
+        document.getElementById('stat-safe').textContent = safe;
+        document.getElementById('stat-error').textContent = error;
+
+        document.getElementById('total-count').textContent = total;
+      }
+
+      // ==========================================
+      // 圖表更新
+      // ==========================================
+      function updateChart() {
+        const container = document.getElementById('asset-chart');
+        
+        // 統計資產命中次數 (只計算 ALERT)
+        const assetCounts = {};
+        filteredData.forEach(row => {
+          if (row[1] === 'ALERT') {
+            const asset = row[3];
+            if (asset && asset !== '無相關資產' && asset !== 'N/A') {
+              assetCounts[asset] = (assetCounts[asset] || 0) + 1;
+            }
+          }
+        });
+
+        // 轉換為陣列並排序取 Top 5
+        const sorted = Object.entries(assetCounts)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5);
+
+        if (sorted.length === 0) {
+          container.innerHTML = '<div class="no-chart-data">目前無命中資產資料</div>';
           return;
         }
 
-        // [修改] 加入 index 參數
-        data.forEach((row, index) => {
+        const maxValue = sorted[0][1];
+        container.innerHTML = sorted.map(([asset, count]) => {
+          const percentage = (count / maxValue) * 100;
+          return `
+            <div class="bar-item">
+              <div class="bar-label" title="${asset}">${asset}</div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width: ${percentage}%"></div>
+              </div>
+              <div class="bar-value">${count}</div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // ==========================================
+      // 表格渲染與分頁
+      // ==========================================
+      function renderTable() {
+        const tbody = document.getElementById('data-body');
+        tbody.innerHTML = '';
+
+        if (filteredData.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px;">目前尚無符合條件的紀錄</td></tr>';
+          document.getElementById('showing-count').textContent = '0';
+          return;
+        }
+
+        // 分頁計算
+        let displayData;
+        if (pageSize === 'all') {
+          displayData = filteredData;
+        } else {
+          const start = (currentPage - 1) * pageSize;
+          const end = start + pageSize;
+          displayData = filteredData.slice(start, end);
+        }
+
+        document.getElementById('showing-count').textContent = displayData.length;
+
+        displayData.forEach((row, index) => {
           const [time, status, warningName, asset, action, emailDate] = row;
           
           let tagClass = 'tag-safe';
@@ -305,11 +940,15 @@
           if (status === 'ALERT') { tagClass = 'tag-alert'; statusText = '⚠️ 風險'; }
           else if (status === 'ERROR') { tagClass = 'tag-error'; statusText = '錯誤'; }
 
+          const globalIndex = pageSize === 'all' 
+            ? index + 1 
+            : (currentPage - 1) * pageSize + index + 1;
+
           const tr = document.createElement('tr');
           tr.innerHTML = `
-            <td>${index + 1}</td> <!-- [修改] 顯示項目編號 -->
+            <td>${globalIndex}</td>
             <td>${time}</td>
-            <td>${emailDate || '-'}</td> <!-- [修改] 顯示信件時間 -->
+            <td>${emailDate || '-'}</td>
             <td><span class="tag ${tagClass}">${statusText}</span></td>
             <td>${warningName}</td>
             <td><strong>${asset}</strong><br><small style="color:#666">${action}</small></td>
@@ -318,25 +957,91 @@
         });
       }
 
-      // 新增：觸發後端掃描功能
+      function updatePagination() {
+        const totalItems = filteredData.length;
+        const totalPages = pageSize === 'all' ? 1 : Math.ceil(totalItems / pageSize) || 1;
+        
+        document.getElementById('current-page').textContent = currentPage;
+        document.getElementById('total-pages').textContent = totalPages;
+        document.getElementById('btn-prev').disabled = currentPage <= 1;
+        document.getElementById('btn-next').disabled = currentPage >= totalPages;
+      }
+
+      function changePage(delta) {
+        const totalPages = pageSize === 'all' ? 1 : Math.ceil(filteredData.length / pageSize);
+        currentPage = Math.max(1, Math.min(currentPage + delta, totalPages));
+        renderTable();
+        updatePagination();
+      }
+
+      function changePageSize() {
+        const select = document.getElementById('page-size');
+        pageSize = select.value === 'all' ? 'all' : parseInt(select.value);
+        currentPage = 1;
+        renderTable();
+        updatePagination();
+      }
+
+      // ==========================================
+      // Excel 匯出
+      // ==========================================
+      function exportToExcel() {
+        if (filteredData.length === 0) {
+          alert('沒有資料可匯出');
+          return;
+        }
+
+        // 準備資料
+        const headers = ['#', '處理時間', '信件時間', '狀態', '警訊名稱', '命中資產', '處理結果'];
+        const rows = filteredData.map((row, index) => {
+          const [time, status, warningName, asset, action, emailDate] = row;
+          let statusText = '安全';
+          if (status === 'ALERT') statusText = '風險';
+          else if (status === 'ERROR') statusText = '錯誤';
+          
+          return [index + 1, time, emailDate || '-', statusText, warningName, asset, action];
+        });
+
+        // 建立工作表
+        const wsData = [headers, ...rows];
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+        // 設定欄寬
+        ws['!cols'] = [
+          { wch: 5 },   // #
+          { wch: 18 },  // 處理時間
+          { wch: 18 },  // 信件時間
+          { wch: 8 },   // 狀態
+          { wch: 50 },  // 警訊名稱
+          { wch: 20 },  // 命中資產
+          { wch: 25 }   // 處理結果
+        ];
+
+        // 建立活頁簿並下載
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, '資安預警紀錄');
+
+        const today = new Date().toISOString().split('T')[0];
+        XLSX.writeFile(wb, `資安預警紀錄_${today}.xlsx`);
+      }
+
+      // ==========================================
+      // 掃描觸發
+      // ==========================================
       function triggerScan() {
         const btn = document.getElementById('btn-scan');
         const originalText = btn.innerHTML;
         
-        // Disable button to prevent double clicks
         btn.disabled = true;
         btn.innerHTML = '⏳ 掃描中...';
 
         google.script.run
           .withSuccessHandler(function(result) {
             btn.innerHTML = '✅ 掃描完成';
-            // 2秒後恢復按鈕
             setTimeout(() => { 
               btn.innerHTML = originalText; 
               btn.disabled = false; 
             }, 2000);
-            
-            // 立即刷新表格資料
             loadData();
           })
           .withFailureHandler(function(err) {

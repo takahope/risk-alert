@@ -44,15 +44,13 @@ function getDashboardData() {
     const lastRow = sheet.getLastRow();
     if (lastRow <= 1) return [];
     
-    // 預設顯示最後 100 筆紀錄
-    const startRow = Math.max(2, lastRow - 99);
-    const numRows = lastRow - startRow + 1;
+    // [修改] 讀取所有資料供前端篩選與統計
+    const numRows = lastRow - 1;
     
     // 讀取前 6 欄用於儀表板顯示 (Timestamp, Status, WarningName, MatchedAsset, Action, Email Date)
-    // Message ID 在後面
-    const values = sheet.getRange(startRow, 1, numRows, 6).getDisplayValues();
+    const values = sheet.getRange(2, 1, numRows, 6).getDisplayValues();
     
-    // [修改] 依照 Email Date (index 5) 降序排列 (由近到遠)
+    // 依照 Email Date (index 5) 降序排列 (由近到遠)
     values.sort((a, b) => {
       const dateA = a[5] ? new Date(a[5]).getTime() : 0;
       const dateB = b[5] ? new Date(b[5]).getTime() : 0;
