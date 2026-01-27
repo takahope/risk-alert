@@ -1,0 +1,317 @@
+/**
+ * @fileoverview Gmail 自動回覆與轉寄處理器 (含儀表板後端)
+ * @description 讀取郵件 -> 比對資產 -> 建立草稿 -> 寫入Log -> 提供儀表板資料。
+ * @author Google Apps Script Expert
+ */
+
+// ==========================================
+// 2. 網頁應用程式與設定 API (Web App & Settings)
+// ==========================================
+
+function doGet() {
+  return HtmlService.createHtmlOutputFromFile('Dashboard')
+    .setTitle('資安預警即時儀表板')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+function getSystemSettings() {
+  ensureSettingsSheetExists();
+  const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.SETTINGS_SHEET_NAME);
+  const values = sheet.getRange("A2:C2").getDisplayValues()[0];
+  return {
+    scanRead: values[0] === "是",
+    autoDraft: values[1] === "是",
+    chatNotify: values[2] === "是"
+  };
+}
+
+function updateSystemSetting(key, isEnabled) {
+  const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.SETTINGS_SHEET_NAME);
+  const val = isEnabled ? "是" : "否";
+  
+  if (key === 'scanRead') sheet.getRange("A2").setValue(val);
+  if (key === 'autoDraft') sheet.getRange("B2").setValue(val);
+  if (key === 'chatNotify') sheet.getRange("C2").setValue(val);
+  
+  return { success: true };
+}
+
+function getDashboardData() {
+  try {
+    const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.LOG_SHEET_NAME);
+    if (!sheet) return [];
+    
+    const lastRow = sheet.getLastRow();
+    if (lastRow <= 1) return [];
+    
+    // 預設顯示最後 100 筆紀錄
+    const startRow = Math.max(2, lastRow - 99);
+    const numRows = lastRow - startRow + 1;
+    
+    // 讀取前 6 欄用於儀表板顯示 (Timestamp, Status, WarningName, MatchedAsset, Action, Email Date)
+    // Message ID 在後面
+    const values = sheet.getRange(startRow, 1, numRows, 6).getDisplayValues();
+    
+    // [修改] 依照 Email Date (index 5) 降序排列 (由近到遠)
+    values.sort((a, b) => {
+      const dateA = a[5] ? new Date(a[5]).getTime() : 0;
+      const dateB = b[5] ? new Date(b[5]).getTime() : 0;
+      return dateB - dateA; // 降序
+    });
+    
+    return values;
+  } catch (e) {
+    console.error("獲取儀表板資料失敗: " + e.message);
+    return [];
+  }
+}
+
+// ==========================================
+// 3. 主控制器 (Main Controller)
+// ==========================================
+
+function processIncomingEmails() {
+  // 1. 讀取當前設定
+  const settings = getSystemSettings();
+  
+  // 2. 構建搜尋語法 (支援多個寄件者)
+  const fromClause = CONFIG.SENDER_B_EMAILS.length === 1
+    ? `from:${CONFIG.SENDER_B_EMAILS[0]}`
+    : `{${CONFIG.SENDER_B_EMAILS.map(e => `from:${e}`).join(' ')}}`;
+  let query = `${fromClause} subject:"${CONFIG.SUBJECT_KEYWORD}"`;
+  
+  // 如果設定 A2="否" (預設)，則只抓未讀；若 A2="是"，則不加限制(會掃描所有信，靠 MessageID 去重)
+  if (!settings.scanRead) {
+    query += ` is:unread`;
+  }
+
+  const threads = GmailApp.search(query);
+  if (threads.length === 0) {
+    console.log("目前沒有符合條件的信件。");
+    // 回傳結果給前端顯示 (可選)
+    return "無符合條件信件";
+  }
+
+  ensureLogSheetExists();
+  const assetList = fetchComparisonData();
+  const processedMessageIds = fetchProcessedMessageIds();
+  let processCount = 0;
+
+  threads.forEach(thread => {
+    const messages = thread.getMessages();
+    messages.forEach(message => {
+      // 去重檢查
+      if (processedMessageIds.has(message.getId())) return;
+      
+      // 雙重防護：如果設定只掃未讀，但信已讀，則跳過
+      if (!settings.scanRead && !message.isUnread()) return;
+
+      processSingleMessage(message, assetList, settings);
+      processCount++;
+      
+      if (message.isUnread()) {
+        GmailApp.markMessageRead(message);
+      }
+    });
+  });
+  
+  return `掃描完成，處理了 ${processCount} 封新信件`;
+}
+
+function processSingleMessage(message, assetList, settings) {
+  const body = message.getPlainBody();
+  const warningName = extractWarningInfo(body);
+  const msgId = message.getId();
+  
+  // [新增] 提取信件收到時間並格式化
+  const emailDate = Utilities.formatDate(message.getDate(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
+  
+  if (!warningName) {
+    const errorMsg = `無法提取警訊名稱或漏洞說明`;
+    logExecutionResult('ERROR', '解析失敗', 'N/A', errorMsg, msgId, emailDate);
+    if (settings.chatNotify) sendToChat(`⚠️ 錯誤報告：${errorMsg}`);
+    return; 
+  }
+
+  const matchedAsset = assetList.find(asset => 
+    warningName.toLowerCase().includes(asset.toLowerCase())
+  );
+
+  if (matchedAsset) {
+    let actionLog = '僅紀錄 (自動草稿已關閉)';
+    if (settings.autoDraft) {
+      createDraftForPersonA(warningName, matchedAsset, message, settings);
+      actionLog = '已建立通知草稿';
+    } else if (settings.chatNotify) {
+       sendToChat(`🚨 **[資產命中] (草稿功能未啟用)**\n偵測資產：${matchedAsset}\n警訊資訊：${warningName}`);
+    }
+    logExecutionResult('ALERT', warningName, matchedAsset, actionLog, msgId, emailDate);
+  } else {
+    let actionLog = '僅紀錄 (自動草稿已關閉)';
+    if (settings.autoDraft) {
+      createDraftReplyToSenderB(warningName, message, settings);
+      actionLog = '已建立回覆草稿';
+    }
+    logExecutionResult('SAFE', warningName, '無相關資產', actionLog, msgId, emailDate);
+  }
+}
+
+// ==========================================
+// 4. 資料提取與資料庫服務
+// ==========================================
+
+function extractWarningInfo(text) {
+  const nameRegex = /警訊名稱[：:]\s*(.+)/i;
+  const descRegex = /漏洞說明[：:]\s*(.+)/i;
+  
+  const nameMatch = text.match(nameRegex);
+  const descMatch = text.match(descRegex);
+  
+  const name = (nameMatch && nameMatch[1]) ? nameMatch[1].trim() : null;
+  const desc = (descMatch && descMatch[1]) ? descMatch[1].trim() : null;
+  
+  if (name && desc) {
+    return `${name} (說明: ${desc})`;
+  } else if (name) {
+    return name;
+  } else if (desc) {
+    return desc;
+  }
+  
+  return null;
+}
+
+/**
+ * [修改] 從 Google Sheet 獲取資產清單 (擴大為 A, B, C 三欄)
+ */
+function fetchComparisonData() {
+  try {
+    const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.SHEET_NAME);
+    if (!sheet) throw new Error("找不到資產清單工作表");
+    const lastRow = sheet.getLastRow();
+    if (lastRow === 0) return [];
+    
+    // 修改處：讀取 3 欄 (A, B, C)，從第 1 欄開始，讀 3 欄寬度
+    return sheet.getRange(1, 1, lastRow, 3)
+      .getValues()
+      .flat() // 將 [[A1,B1,C1], [A2,B2,C2]] 攤平成 [A1,B1,C1,A2...]
+      .map(String)
+      .map(s => s.trim())
+      .filter(s => s.length > 0); // 過濾空字串
+  } catch (e) {
+    console.error("讀取試算表失敗: " + e.message);
+    return [];
+  }
+}
+
+function fetchProcessedMessageIds() {
+  const ids = new Set();
+  try {
+    const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.LOG_SHEET_NAME);
+    if (!sheet) return ids;
+    const lastRow = sheet.getLastRow();
+    if (lastRow <= 1) return ids;
+    // [修改] Message ID 現在位於第 7 欄 (G欄)，因為第 6 欄變成了 Email Date
+    const data = sheet.getRange(2, 7, lastRow - 1, 1).getValues();
+    data.flat().forEach(id => { if(id) ids.add(String(id)); });
+  } catch (e) {
+    console.error("讀取 Processed IDs 失敗: " + e.message);
+  }
+  return ids;
+}
+
+function ensureSettingsSheetExists() {
+  const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  let settingSheet = ss.getSheetByName(CONFIG.SETTINGS_SHEET_NAME);
+  if (!settingSheet) {
+    settingSheet = ss.insertSheet(CONFIG.SETTINGS_SHEET_NAME);
+    settingSheet.appendRow(['掃描已讀信件 (A2)', '開啟自動草稿 (B2)', '開啟Chat通知 (C2)']);
+    settingSheet.appendRow(['否', '是', '是']);
+  }
+}
+
+function ensureLogSheetExists() {
+  const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  let sheet = ss.getSheetByName(CONFIG.LOG_SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(CONFIG.LOG_SHEET_NAME);
+    // [修改] 新增 'Email Date' 標題
+    sheet.appendRow(['Timestamp', 'Status', 'Warning Name', 'Matched Asset', 'Action', 'Email Date', 'Message ID']);
+    sheet.setFrozenRows(1);
+  }
+}
+
+function logExecutionResult(status, warningName, asset, action, msgId, emailDate) {
+  try {
+    const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.LOG_SHEET_NAME);
+    if (sheet) {
+      const time = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
+      // [修改] 寫入順序加入 emailDate
+      sheet.appendRow([time, status, warningName, asset, action, emailDate, msgId]);
+    }
+  } catch (e) {
+    console.error("寫入 Log 失敗: " + e.message);
+  }
+}
+
+// ==========================================
+// 5. 通知與草稿服務
+// ==========================================
+
+function createDraftForPersonA(warningName, matchedAsset, originalMessage, settings) {
+  const subject = `[資產風險警示] 發現內部資產 ${matchedAsset} 相關漏洞`;
+  // [修復] 恢復完整的信件內容
+  const body = `
+    親愛的 A：
+    
+    系統檢測到最新的漏洞預警通報內容與資訊資產名稱 "${matchedAsset}" 有相關性。
+    警訊名稱：${warningName}
+    
+    請儘速確認並評估影響範圍。
+    
+    原始信件內容摘要：
+    ${originalMessage.getPlainBody().substring(0, 300)}...
+  `;
+  
+  GmailApp.createDraft(CONFIG.PERSON_A_EMAIL, subject, body);
+  
+  if (settings.chatNotify) {
+    sendToChat(`🚨 **[資產命中] 已建立通知草稿**\n偵測資產：${matchedAsset}\n警訊名稱：${warningName}`);
+  }
+}
+
+function createDraftReplyToSenderB(warningName, originalMessage, settings) {
+  // [修復] 恢復完整的信件內容
+  const replyBody = `
+    您好，
+    
+    已收到漏洞預警通知：
+    "${warningName}"
+    
+    經確認，無相關軟硬體資產，無需處理。
+    感謝通知。
+  `;
+  
+  originalMessage.getThread().createDraftReply(replyBody);
+  
+  if (settings.chatNotify) {
+    sendToChat(`✅ **[無相關資產] 已建立回覆草稿**\n警訊名稱：${warningName}`);
+  }
+}
+
+function sendToChat(text) {
+  if (!CONFIG.GOOGLE_CHAT_WEBHOOK_URL || CONFIG.GOOGLE_CHAT_WEBHOOK_URL.includes('YOUR_KEY')) {
+    console.log("模擬 Chat 通知: " + text);
+    return;
+  }
+  try {
+    UrlFetchApp.fetch(CONFIG.GOOGLE_CHAT_WEBHOOK_URL, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify({ text: text }),
+      muteHttpExceptions: true
+    });
+  } catch (e) {
+    console.error("Chat 通知失敗: " + e.message);
+  }
+}
