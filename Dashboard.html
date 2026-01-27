@@ -175,18 +175,31 @@
       /* 統計卡片區塊 */
       .stats-container {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        grid-template-columns: repeat(5, 1fr);
         gap: 15px;
         margin-bottom: 20px;
+      }
+
+      @media (max-width: 900px) {
+        .stats-container {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .stat-card.chart-card {
+          grid-column: span 2;
+        }
       }
 
       .stat-card {
         background: var(--card-bg);
         border-radius: 8px;
-        padding: 20px;
+        padding: 15px;
         box-shadow: 0 1px 2px rgba(60,64,67,0.3);
         text-align: center;
         transition: transform 0.2s;
+        min-height: 120px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
       }
 
       .stat-card:hover {
@@ -194,18 +207,18 @@
       }
 
       .stat-card .icon {
-        font-size: 24px;
-        margin-bottom: 8px;
+        font-size: 20px;
+        margin-bottom: 6px;
       }
 
       .stat-card .value {
-        font-size: 32px;
+        font-size: 28px;
         font-weight: 700;
         color: #202124;
       }
 
       .stat-card .label {
-        font-size: 13px;
+        font-size: 12px;
         color: #5f6368;
         margin-top: 4px;
       }
@@ -214,6 +227,67 @@
       .stat-card.safe { border-left: 4px solid var(--success-color); }
       .stat-card.error { border-left: 4px solid #333; }
       .stat-card.total { border-left: 4px solid var(--primary-color); }
+      .stat-card.chart-card { border-left: 4px solid var(--warning-color); text-align: left; }
+
+      /* 卡片內圖表樣式 */
+      .stat-card .chart-title {
+        font-size: 11px;
+        color: #5f6368;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .stat-card .mini-bar-chart {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .stat-card .mini-bar-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .stat-card .mini-bar-label {
+        width: 70px;
+        font-size: 10px;
+        color: #333;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .stat-card .mini-bar-track {
+        flex: 1;
+        height: 10px;
+        background: #f1f3f4;
+        border-radius: 2px;
+        overflow: hidden;
+      }
+
+      .stat-card .mini-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--danger-color), #ea8685);
+        border-radius: 2px;
+      }
+
+      .stat-card .mini-bar-value {
+        width: 20px;
+        font-size: 10px;
+        font-weight: 600;
+        color: #333;
+        text-align: right;
+      }
+
+      .stat-card .no-chart-data {
+        font-size: 11px;
+        color: #999;
+        text-align: center;
+        padding: 10px 0;
+      }
 
       /* 篩選工具列 */
       .filter-panel {
@@ -313,72 +387,6 @@
         display: flex;
         gap: 10px;
         margin-left: auto;
-      }
-
-      /* 資產分佈圖 */
-      .chart-container {
-        background: var(--card-bg);
-        border-radius: 8px;
-        box-shadow: 0 1px 2px rgba(60,64,67,0.3);
-        padding: 20px;
-        margin-bottom: 20px;
-      }
-
-      .chart-container h3 {
-        margin: 0 0 15px 0;
-        font-size: 14px;
-        color: #5f6368;
-      }
-
-      .bar-chart {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-      }
-
-      .bar-item {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-      }
-
-      .bar-label {
-        width: 180px;
-        font-size: 13px;
-        color: #333;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-
-      .bar-track {
-        flex: 1;
-        height: 20px;
-        background: #f1f3f4;
-        border-radius: 4px;
-        overflow: hidden;
-      }
-
-      .bar-fill {
-        height: 100%;
-        background: linear-gradient(90deg, var(--danger-color), #ea8685);
-        border-radius: 4px;
-        transition: width 0.5s ease;
-      }
-
-      .bar-value {
-        width: 40px;
-        font-size: 13px;
-        font-weight: 600;
-        color: #333;
-        text-align: right;
-      }
-
-      .no-chart-data {
-        text-align: center;
-        color: #999;
-        padding: 20px;
-        font-size: 14px;
       }
 
       /* 表格樣式 */
@@ -566,6 +574,12 @@
           <div class="value" id="stat-error">-</div>
           <div class="label">解析錯誤</div>
         </div>
+        <div class="stat-card chart-card">
+          <div class="chart-title">📈 Top 5 命中資產</div>
+          <div class="mini-bar-chart" id="asset-chart">
+            <div class="no-chart-data">載入中...</div>
+          </div>
+        </div>
       </div>
 
       <!-- 篩選工具列 -->
@@ -619,14 +633,6 @@
             <button class="btn btn-outline" onclick="resetFilters()">重置篩選</button>
             <button class="btn btn-success" onclick="exportToExcel()">📥 匯出 Excel</button>
           </div>
-        </div>
-      </div>
-
-      <!-- 資產命中分佈圖 -->
-      <div class="chart-container">
-        <h3>📈 Top 5 命中資產分佈</h3>
-        <div class="bar-chart" id="asset-chart">
-          <div class="no-chart-data">載入中...</div>
         </div>
       </div>
 
@@ -888,7 +894,7 @@
           .slice(0, 5);
 
         if (sorted.length === 0) {
-          container.innerHTML = '<div class="no-chart-data">目前無命中資產資料</div>';
+          container.innerHTML = '<div class="no-chart-data">無命中資料</div>';
           return;
         }
 
@@ -896,12 +902,12 @@
         container.innerHTML = sorted.map(([asset, count]) => {
           const percentage = (count / maxValue) * 100;
           return `
-            <div class="bar-item">
-              <div class="bar-label" title="${asset}">${asset}</div>
-              <div class="bar-track">
-                <div class="bar-fill" style="width: ${percentage}%"></div>
+            <div class="mini-bar-item">
+              <div class="mini-bar-label" title="${asset}">${asset}</div>
+              <div class="mini-bar-track">
+                <div class="mini-bar-fill" style="width: ${percentage}%"></div>
               </div>
-              <div class="bar-value">${count}</div>
+              <div class="mini-bar-value">${count}</div>
             </div>
           `;
         }).join('');
