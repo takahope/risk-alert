@@ -36,6 +36,37 @@ function updateSystemSetting(key, isEnabled) {
   return { success: true };
 }
 
+/**
+ * 更新使用狀態（未使用/已處理）
+ * @param {number} rowIndex - 資料列索引（從 0 開始）
+ * @param {string} usageStatus - 使用狀態（'未使用' 或 '已處理'）
+ */
+function updateUsageStatus(rowIndex, usageStatus) {
+  try {
+    const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.LOG_SHEET_NAME);
+    if (!sheet) throw new Error('找不到 Log 工作表');
+    
+    // rowIndex 是從 0 開始的資料索引，加上標題列後變成實際列號
+    const actualRow = rowIndex + 2;
+    
+    // 更新 I 欄 (使用狀態)
+    sheet.getRange(actualRow, 9).setValue(usageStatus);
+    
+    // 如果設定為「已處理」，將 B 欄狀態從 ALERT 改為 SAFE
+    if (usageStatus === '已處理') {
+      const currentStatus = sheet.getRange(actualRow, 2).getValue();
+      if (currentStatus === 'ALERT') {
+        sheet.getRange(actualRow, 2).setValue('SAFE');
+      }
+    }
+    
+    return { success: true };
+  } catch (e) {
+    console.error('更新使用狀態失敗: ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
 function getDashboardData() {
   try {
     const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.LOG_SHEET_NAME);
@@ -187,12 +218,13 @@ function processSingleMessage(message, assetList, settings) {
     }
     logExecutionResult('ALERT', warningName, matchedAssetStr, actionLog, msgId, emailDate, hasReply, notInUse);
   } else {
+    // 無命中資產：直接標記為 SAFE 和 未使用
     let actionLog = '僅紀錄 (自動草稿已關閉)';
     if (settings.autoDraft) {
       createDraftReplyToSenderB(warningName, message, settings);
       actionLog = '已建立回覆草稿';
     }
-    logExecutionResult('SAFE', warningName, '無相關資產', actionLog, msgId, emailDate, hasReply, notInUse);
+    logExecutionResult('SAFE', warningName, '無相關資產', actionLog, msgId, emailDate, hasReply, '未使用');
   }
 }
 

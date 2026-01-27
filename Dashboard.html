@@ -470,6 +470,35 @@
       .tag-safe { background-color: #e6f4ea; color: var(--success-color); }
       .tag-error { background-color: #333; color: #fff; }
 
+      /* 使用狀態按鈕 */
+      .usage-btn {
+        padding: 3px 8px;
+        border: none;
+        border-radius: 4px;
+        font-size: 11px;
+        cursor: pointer;
+        margin: 1px;
+        transition: all 0.2s;
+      }
+
+      .usage-btn-notuse {
+        background: #fff3e0;
+        color: #e65100;
+      }
+
+      .usage-btn-notuse:hover {
+        background: #ffe0b2;
+      }
+
+      .usage-btn-done {
+        background: #e6f4ea;
+        color: #188038;
+      }
+
+      .usage-btn-done:hover {
+        background: #c8e6c9;
+      }
+
       .status-bar {
         font-size: 12px;
         color: #666;
@@ -995,11 +1024,18 @@
           else if (status === 'ERROR') { tagClass = 'tag-error'; statusText = '錯誤'; }
 
           // 未使用狀態顯示
-          let usageStatus = '-';
+          let usageStatus = '';
           if (notInUse === '未使用') {
             usageStatus = '<span class="tag" style="background:#fff3e0; color:#e65100;">🚫 未使用</span>';
-          } else if (hasReply === '有回覆') {
-            usageStatus = '<span style="color:#999; font-size:12px;">有回覆</span>';
+          } else if (notInUse === '已處理') {
+            usageStatus = '<span class="tag" style="background:#e6f4ea; color:#188038;">✅ 已處理</span>';
+          } else {
+            // 無資料時顯示兩個按鈕
+            const dataIndex = filteredData.indexOf(row);
+            usageStatus = `
+              <button class="usage-btn usage-btn-notuse" onclick="setUsageStatus(${dataIndex}, '未使用')">未使用</button>
+              <button class="usage-btn usage-btn-done" onclick="setUsageStatus(${dataIndex}, '已處理')">已處理</button>
+            `;
           }
 
           const globalIndex = pageSize === 'all' 
@@ -1043,6 +1079,42 @@
         currentPage = 1;
         renderTable();
         updatePagination();
+      }
+
+      // ==========================================
+      // 使用狀態更新
+      // ==========================================
+      function setUsageStatus(dataIndex, usageStatus) {
+        const row = filteredData[dataIndex];
+        if (!row) {
+          alert('找不到資料');
+          return;
+        }
+        
+        // 找到在 allData 中的原始索引
+        const originalIndex = allData.indexOf(row);
+        if (originalIndex === -1) {
+          alert('找不到原始資料');
+          return;
+        }
+        
+        google.script.run
+          .withSuccessHandler(function(result) {
+            if (result.success) {
+              // 更新本地資料
+              allData[originalIndex][8] = usageStatus;  // I欄
+              if (usageStatus === '已處理') {
+                allData[originalIndex][1] = 'SAFE';  // B欄
+              }
+              applyFilters();  // 重新篩選並渲染
+            } else {
+              alert('更新失敗: ' + (result.error || '未知錯誤'));
+            }
+          })
+          .withFailureHandler(function(err) {
+            alert('更新失敗: ' + err.message);
+          })
+          .updateUsageStatus(originalIndex, usageStatus);
       }
 
       // ==========================================
