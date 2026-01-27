@@ -52,12 +52,10 @@ function updateUsageStatus(rowIndex, usageStatus) {
     // 更新 I 欄 (使用狀態)
     sheet.getRange(actualRow, 9).setValue(usageStatus);
     
-    // 如果設定為「已處理」，將 B 欄狀態從 ALERT 改為 SAFE
-    if (usageStatus === '已處理') {
-      const currentStatus = sheet.getRange(actualRow, 2).getValue();
-      if (currentStatus === 'ALERT') {
-        sheet.getRange(actualRow, 2).setValue('SAFE');
-      }
+    // 無論是「未使用」或「已處理」，都將 B 欄狀態從 ALERT 改為 SAFE
+    const currentStatus = sheet.getRange(actualRow, 2).getValue();
+    if (currentStatus === 'ALERT') {
+      sheet.getRange(actualRow, 2).setValue('SAFE');
     }
     
     return { success: true };

@@ -1033,8 +1033,8 @@
             // 無資料時顯示兩個按鈕
             const dataIndex = filteredData.indexOf(row);
             usageStatus = `
-              <button class="usage-btn usage-btn-notuse" onclick="setUsageStatus(${dataIndex}, '未使用')">未使用</button>
-              <button class="usage-btn usage-btn-done" onclick="setUsageStatus(${dataIndex}, '已處理')">已處理</button>
+              <button class="usage-btn usage-btn-notuse" onclick="setUsageStatus(${dataIndex}, '未使用', this)">未使用</button>
+              <button class="usage-btn usage-btn-done" onclick="setUsageStatus(${dataIndex}, '已處理', this)">已處理</button>
             `;
           }
 
@@ -1084,7 +1084,7 @@
       // ==========================================
       // 使用狀態更新
       // ==========================================
-      function setUsageStatus(dataIndex, usageStatus) {
+      function setUsageStatus(dataIndex, usageStatus, buttonElement) {
         const row = filteredData[dataIndex];
         if (!row) {
           alert('找不到資料');
@@ -1097,22 +1097,42 @@
           alert('找不到原始資料');
           return;
         }
+
+        // 取得表格列元素
+        const tableRow = buttonElement.closest('tr');
+        const cells = tableRow.querySelectorAll('td');
+        
+        // 禁用按鈕避免重複點擊
+        const buttons = tableRow.querySelectorAll('.usage-btn');
+        buttons.forEach(btn => btn.disabled = true);
         
         google.script.run
           .withSuccessHandler(function(result) {
             if (result.success) {
-              // 更新本地資料
+              // 更新本地資料 (兩種狀態都會將狀態改為 SAFE)
               allData[originalIndex][8] = usageStatus;  // I欄
-              if (usageStatus === '已處理') {
-                allData[originalIndex][1] = 'SAFE';  // B欄
+              allData[originalIndex][1] = 'SAFE';       // B欄
+              
+              // 只更新該列的狀態欄 (第4格, index=3)
+              cells[3].innerHTML = '<span class="tag tag-safe">安全</span>';
+              
+              // 更新該列的使用狀態欄 (第7格, index=6)
+              if (usageStatus === '未使用') {
+                cells[6].innerHTML = '<span class="tag" style="background:#fff3e0; color:#e65100;">🚫 未使用</span>';
+              } else {
+                cells[6].innerHTML = '<span class="tag" style="background:#e6f4ea; color:#188038;">✅ 已處理</span>';
               }
-              applyFilters();  // 重新篩選並渲染
+              
+              // 更新統計數據
+              updateStats();
             } else {
               alert('更新失敗: ' + (result.error || '未知錯誤'));
+              buttons.forEach(btn => btn.disabled = false);
             }
           })
           .withFailureHandler(function(err) {
             alert('更新失敗: ' + err.message);
+            buttons.forEach(btn => btn.disabled = false);
           })
           .updateUsageStatus(originalIndex, usageStatus);
       }
