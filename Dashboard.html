@@ -249,47 +249,52 @@
         gap: 4px;
       }
 
-      .stat-card .mini-bar-chart {
+      .stat-card .top-assets-container {
+        display: flex;
+        gap: 12px;
+      }
+
+      .stat-card .top-assets-column {
         display: flex;
         flex-direction: column;
         gap: 4px;
+        flex: 1;
       }
 
-      .stat-card .mini-bar-item {
+      .stat-card .top-asset-item {
         display: flex;
         align-items: center;
         gap: 6px;
+        background: #f8f9fa;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 11px;
       }
 
-      .stat-card .mini-bar-label {
-        width: 70px;
-        font-size: 10px;
+      .stat-card .top-asset-rank {
+        background: var(--danger-color);
+        color: white;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 9px;
+      }
+
+      .stat-card .top-asset-name {
         color: #333;
+        max-width: 60px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
       }
 
-      .stat-card .mini-bar-track {
-        flex: 1;
-        height: 10px;
-        background: #f1f3f4;
-        border-radius: 2px;
-        overflow: hidden;
-      }
-
-      .stat-card .mini-bar-fill {
-        height: 100%;
-        background: linear-gradient(90deg, var(--danger-color), #ea8685);
-        border-radius: 2px;
-      }
-
-      .stat-card .mini-bar-value {
-        width: 20px;
-        font-size: 10px;
+      .stat-card .top-asset-count {
+        color: var(--danger-color);
         font-weight: 600;
-        color: #333;
-        text-align: right;
       }
 
       .stat-card .no-chart-data {
@@ -590,8 +595,8 @@
           <div class="label">解析錯誤</div>
         </div>
         <div class="stat-card chart-card">
-          <div class="chart-title">📈 Top 5 命中資產</div>
-          <div class="mini-bar-chart" id="asset-chart">
+          <div class="chart-title">📈 Top 10 命中資產</div>
+          <div class="top-assets-container" id="asset-chart">
             <div class="no-chart-data">載入中...</div>
           </div>
         </div>
@@ -924,29 +929,36 @@
           }
         });
 
-        // 轉換為陣列並排序取 Top 5
+        // 轉換為陣列並排序取 Top 10
         const sorted = Object.entries(assetCounts)
           .sort((a, b) => b[1] - a[1])
-          .slice(0, 5);
+          .slice(0, 10);
 
         if (sorted.length === 0) {
           container.innerHTML = '<div class="no-chart-data">無命中資料</div>';
           return;
         }
 
-        const maxValue = sorted[0][1];
-        container.innerHTML = sorted.map(([asset, count]) => {
-          const percentage = (count / maxValue) * 100;
-          return `
-            <div class="mini-bar-item">
-              <div class="mini-bar-label" title="${asset}">${asset}</div>
-              <div class="mini-bar-track">
-                <div class="mini-bar-fill" style="width: ${percentage}%"></div>
-              </div>
-              <div class="mini-bar-value">${count}</div>
+        // 分成兩欄：1-5 和 6-10
+        const col1 = sorted.slice(0, 5);
+        const col2 = sorted.slice(5, 10);
+
+        const renderColumn = (items, startIndex) => {
+          return items.map(([asset, count], idx) => `
+            <div class="top-asset-item" title="${asset}: ${count} 次">
+              <span class="top-asset-rank">${startIndex + idx + 1}</span>
+              <span class="top-asset-name">${asset}</span>
+              <span class="top-asset-count">${count}</span>
             </div>
-          `;
-        }).join('');
+          `).join('');
+        };
+
+        let html = '<div class="top-assets-column">' + renderColumn(col1, 0) + '</div>';
+        if (col2.length > 0) {
+          html += '<div class="top-assets-column">' + renderColumn(col2, 5) + '</div>';
+        }
+
+        container.innerHTML = html;
       }
 
       // ==========================================
