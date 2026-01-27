@@ -123,7 +123,9 @@ function processIncomingEmails() {
 
 function processSingleMessage(message, assetList, settings) {
   const body = message.getPlainBody();
-  const warningName = extractWarningInfo(body);
+  const warningInfo = extractWarningInfo(body);
+  const warningName = warningInfo.displayName;
+  const matchFields = warningInfo.matchFields;
   const msgId = message.getId();
   
   // [新增] 提取信件收到時間並格式化
@@ -163,11 +165,9 @@ function processSingleMessage(message, assetList, settings) {
     return; 
   }
 
-  // [修改] 搜尋所有命中的資產（支援多個資產命中）
-  const bodyLower = body.toLowerCase();
+  // 搜尋所有命中的資產（比對所有提取的欄位：警訊名稱、漏洞說明、內容說明、影響平台、影響等級）
   const matchedAssets = assetList.filter(asset => 
-    warningName.toLowerCase().includes(asset.toLowerCase()) || 
-    bodyLower.includes(asset.toLowerCase())
+    matchFields.some(field => field.toLowerCase().includes(asset.toLowerCase()))
   );
   
   // [新增] 去除重複的資產（不區分大小寫）
@@ -224,33 +224,36 @@ function extractWarningInfo(text) {
   const platform = (platformMatch && platformMatch[1]) ? platformMatch[1].trim() : null;
   const level = (levelMatch && levelMatch[1]) ? levelMatch[1].trim() : null;
   
-  // 組合結果
-  let result = '';
+  // 組合顯示結果
+  let displayName = '';
   
   // 優先使用警訊名稱
   if (name) {
-    result = name;
+    displayName = name;
   } else if (desc) {
-    result = desc;
+    displayName = desc;
   } else if (content) {
-    result = content;
+    displayName = content;
   }
   
   // 如果有結果，附加額外資訊
-  if (result) {
+  if (displayName) {
     const extras = [];
     if (desc && name) extras.push(`說明: ${desc}`);
-    if (content && !result.includes(content)) extras.push(`內容: ${content}`);
+    if (content && !displayName.includes(content)) extras.push(`內容: ${content}`);
     if (platform) extras.push(`平台: ${platform}`);
     if (level) extras.push(`等級: ${level}`);
     
     if (extras.length > 0) {
-      result += ` (${extras.join(' | ')})`;
+      displayName += ` (${extras.join(' | ')})`;
     }
-    return result;
   }
   
-  return null;
+  // 返回物件：包含顯示名稱和用於匹配的欄位陣列
+  return {
+    displayName: displayName || null,
+    matchFields: [name, desc, content, platform, level].filter(Boolean)
+  };
 }
 
 /**
