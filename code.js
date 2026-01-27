@@ -136,22 +136,25 @@ function processSingleMessage(message, assetList, settings) {
     return; 
   }
 
-  // [修改] 同時搜尋「警訊名稱」和「整個郵件正文」
+  // [修改] 搜尋所有命中的資產（支援多個資產命中）
   const bodyLower = body.toLowerCase();
-  const matchedAsset = assetList.find(asset => 
+  const matchedAssets = assetList.filter(asset => 
     warningName.toLowerCase().includes(asset.toLowerCase()) || 
     bodyLower.includes(asset.toLowerCase())
   );
 
-  if (matchedAsset) {
+  if (matchedAssets.length > 0) {
+    // [修改] 將所有命中資產合併為字串
+    const matchedAssetStr = matchedAssets.join(', ');
+    
     let actionLog = '僅紀錄 (自動草稿已關閉)';
     if (settings.autoDraft) {
-      createDraftForPersonA(warningName, matchedAsset, message, settings);
+      createDraftForPersonA(warningName, matchedAssetStr, message, settings);
       actionLog = '已建立通知草稿';
     } else if (settings.chatNotify) {
-       sendToChat(`🚨 **[資產命中] (草稿功能未啟用)**\n偵測資產：${matchedAsset}\n警訊資訊：${warningName}`);
+       sendToChat(`🚨 **[資產命中] (草稿功能未啟用)**\n偵測資產：${matchedAssetStr}\n警訊資訊：${warningName}`);
     }
-    logExecutionResult('ALERT', warningName, matchedAsset, actionLog, msgId, emailDate);
+    logExecutionResult('ALERT', warningName, matchedAssetStr, actionLog, msgId, emailDate);
   } else {
     let actionLog = '僅紀錄 (自動草稿已關閉)';
     if (settings.autoDraft) {
