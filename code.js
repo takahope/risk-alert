@@ -142,10 +142,14 @@ function processSingleMessage(message, assetList, settings) {
     warningName.toLowerCase().includes(asset.toLowerCase()) || 
     bodyLower.includes(asset.toLowerCase())
   );
+  
+  // [新增] 去除重複的資產（不區分大小寫）
+  const uniqueAssets = [...new Set(matchedAssets.map(a => a.toLowerCase()))]
+    .map(lowerAsset => matchedAssets.find(a => a.toLowerCase() === lowerAsset));
 
-  if (matchedAssets.length > 0) {
+  if (uniqueAssets.length > 0) {
     // [修改] 將所有命中資產合併為字串
-    const matchedAssetStr = matchedAssets.join(', ');
+    const matchedAssetStr = uniqueAssets.join(', ');
     
     let actionLog = '僅紀錄 (自動草稿已關閉)';
     if (settings.autoDraft) {
