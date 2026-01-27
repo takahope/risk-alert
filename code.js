@@ -167,21 +167,53 @@ function processSingleMessage(message, assetList, settings) {
 // ==========================================
 
 function extractWarningInfo(text) {
+  // 警訊名稱
   const nameRegex = /警訊名稱[：:]\s*(.+)/i;
+  // 漏洞說明
   const descRegex = /漏洞說明[：:]\s*(.+)/i;
+  // [新增] 內容說明
+  const contentRegex = /內容說明[：:]\s*(.+)/i;
+  // [新增] 影響平台
+  const platformRegex = /影響平台[：:]\s*(.+)/i;
+  // [新增] 影響等級
+  const levelRegex = /影響等級[：:]\s*(.+)/i;
   
   const nameMatch = text.match(nameRegex);
   const descMatch = text.match(descRegex);
+  const contentMatch = text.match(contentRegex);
+  const platformMatch = text.match(platformRegex);
+  const levelMatch = text.match(levelRegex);
   
   const name = (nameMatch && nameMatch[1]) ? nameMatch[1].trim() : null;
   const desc = (descMatch && descMatch[1]) ? descMatch[1].trim() : null;
+  const content = (contentMatch && contentMatch[1]) ? contentMatch[1].trim() : null;
+  const platform = (platformMatch && platformMatch[1]) ? platformMatch[1].trim() : null;
+  const level = (levelMatch && levelMatch[1]) ? levelMatch[1].trim() : null;
   
-  if (name && desc) {
-    return `${name} (說明: ${desc})`;
-  } else if (name) {
-    return name;
+  // 組合結果
+  let result = '';
+  
+  // 優先使用警訊名稱
+  if (name) {
+    result = name;
   } else if (desc) {
-    return desc;
+    result = desc;
+  } else if (content) {
+    result = content;
+  }
+  
+  // 如果有結果，附加額外資訊
+  if (result) {
+    const extras = [];
+    if (desc && name) extras.push(`說明: ${desc}`);
+    if (content && !result.includes(content)) extras.push(`內容: ${content}`);
+    if (platform) extras.push(`平台: ${platform}`);
+    if (level) extras.push(`等級: ${level}`);
+    
+    if (extras.length > 0) {
+      result += ` (${extras.join(' | ')})`;
+    }
+    return result;
   }
   
   return null;
