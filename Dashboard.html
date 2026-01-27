@@ -491,11 +491,17 @@
         line-clamp: unset;
       }
 
+      .expandable-text .text-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 4px;
+      }
+
       .expandable-text .toggle-btn {
         color: var(--primary-color);
         cursor: pointer;
         font-size: 12px;
-        margin-top: 4px;
         display: inline-flex;
         align-items: center;
         gap: 2px;
@@ -512,6 +518,24 @@
 
       .expandable-text.expanded .toggle-btn .arrow {
         transform: rotate(180deg);
+      }
+
+      /* 信件連結 */
+      .email-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+        font-size: 14px;
+        padding: 2px 4px;
+        border-radius: 4px;
+        transition: all 0.2s;
+        vertical-align: middle;
+      }
+
+      .email-link:hover {
+        background: #e3f2fd;
+        transform: scale(1.1);
       }
 
       /* 使用狀態按鈕 */
@@ -1372,16 +1396,28 @@
           // 操作者顯示 (取 email 的使用者名稱部分)
           const operatorDisplay = operator ? `<small title="${operator}">${operator.split('@')[0]}</small>` : '<small style="color:#999;">-</small>';
 
+          // 建構 Gmail 連結
+          const emailLink = msgId 
+            ? `<a href="https://mail.google.com/mail/u/0/#search/rfc822msgid:${encodeURIComponent(msgId)}" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  class="email-link" 
+                  title="在 Gmail 中開啟此信件">📧</a>`
+            : '';
+
           // 警訊名稱顯示 (可展開)
           const warningDisplay = warningName && warningName.length > 60 
             ? `<div class="expandable-text">
                 <div class="text-content">${warningName}</div>
-                <span class="toggle-btn" onclick="toggleExpandText(this)">
-                  <span>顯示更多</span>
-                  <span class="arrow">▼</span>
-                </span>
+                <div class="text-actions">
+                  <span class="toggle-btn" onclick="toggleExpandText(this)">
+                    <span>顯示更多</span>
+                    <span class="arrow">▼</span>
+                  </span>
+                  ${emailLink}
+                </div>
               </div>`
-            : warningName || '-';
+            : (warningName ? `<span>${warningName}</span> ${emailLink}` : '-');
 
           const globalIndex = pageSize === 'all' 
             ? index + 1 
