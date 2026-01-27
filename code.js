@@ -52,13 +52,17 @@ function updateUsageStatus(rowIndex, usageStatus) {
     // 更新 I 欄 (使用狀態)
     sheet.getRange(actualRow, 9).setValue(usageStatus);
     
+    // 更新 J 欄 (操作者)
+    const userEmail = Session.getActiveUser().getEmail() || Session.getEffectiveUser().getEmail() || '未知使用者';
+    sheet.getRange(actualRow, 10).setValue(userEmail);
+    
     // 無論是「未使用」或「已處理」，都將 B 欄狀態從 ALERT 改為 SAFE
     const currentStatus = sheet.getRange(actualRow, 2).getValue();
     if (currentStatus === 'ALERT') {
       sheet.getRange(actualRow, 2).setValue('SAFE');
     }
     
-    return { success: true };
+    return { success: true, operator: userEmail };
   } catch (e) {
     console.error('更新使用狀態失敗: ' + e.message);
     return { success: false, error: e.message };
@@ -76,8 +80,8 @@ function getDashboardData() {
     // [修改] 讀取所有資料供前端篩選與統計
     const numRows = lastRow - 1;
     
-    // 讀取前 9 欄用於儀表板顯示 (Timestamp, Status, WarningName, MatchedAsset, Action, Email Date, Message ID, Has Reply, Not In Use)
-    const values = sheet.getRange(2, 1, numRows, 9).getDisplayValues();
+    // 讀取前 10 欄用於儀表板顯示 (Timestamp, Status, WarningName, MatchedAsset, Action, Email Date, Message ID, Has Reply, Not In Use, Operator)
+    const values = sheet.getRange(2, 1, numRows, 10).getDisplayValues();
     
     // 依照 Email Date (index 5) 降序排列 (由近到遠)
     values.sort((a, b) => {

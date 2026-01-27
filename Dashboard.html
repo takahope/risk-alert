@@ -852,13 +852,14 @@
           <table>
             <thead>
               <tr>
-                <th width="5%">#</th>
-                <th width="12%">處理時間</th>
-                <th width="12%">信件時間</th>
-                <th width="8%">狀態</th>
-                <th width="33%">警訊名稱</th>
-                <th width="22%">命中資產 / 處理結果</th>
-                <th width="8%">使用狀態</th>
+                <th width="4%">#</th>
+                <th width="11%">處理時間</th>
+                <th width="11%">信件時間</th>
+                <th width="6%">狀態</th>
+                <th width="28%">警訊名稱</th>
+                <th width="18%">命中資產 / 處理結果</th>
+                <th width="10%">使用狀態</th>
+                <th width="12%">操作者</th>
               </tr>
             </thead>
             <tbody id="data-body">
@@ -1147,7 +1148,7 @@
         tbody.innerHTML = '';
 
         if (filteredData.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px;">目前尚無符合條件的紀錄</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px;">目前尚無符合條件的紀錄</td></tr>';
           document.getElementById('showing-count').textContent = '0';
           return;
         }
@@ -1165,7 +1166,7 @@
         document.getElementById('showing-count').textContent = displayData.length;
 
         displayData.forEach((row, index) => {
-          const [time, status, warningName, asset, action, emailDate, msgId, hasReply, notInUse] = row;
+          const [time, status, warningName, asset, action, emailDate, msgId, hasReply, notInUse, operator] = row;
           
           let tagClass = 'tag-safe';
           let statusText = '安全';
@@ -1193,6 +1194,9 @@
             `;
           }
 
+          // 操作者顯示 (取 email 的使用者名稱部分)
+          const operatorDisplay = operator ? `<small title="${operator}">${operator.split('@')[0]}</small>` : '<small style="color:#999;">-</small>';
+
           const globalIndex = pageSize === 'all' 
             ? index + 1 
             : (currentPage - 1) * pageSize + index + 1;
@@ -1206,6 +1210,7 @@
             <td>${warningName}</td>
             <td><strong>${asset}</strong><br><small style="color:#666">${action}</small></td>
             <td>${usageStatus}</td>
+            <td>${operatorDisplay}</td>
           `;
           tbody.appendChild(tr);
         });
@@ -1331,6 +1336,7 @@
               // 更新本地資料
               allData[originalIndex][8] = usageStatus;
               allData[originalIndex][1] = 'SAFE';
+              allData[originalIndex][9] = result.operator || '';
               
               // 更新表格顯示
               cells[3].innerHTML = '<span class="tag tag-safe">安全</span>';
@@ -1339,6 +1345,11 @@
                 cells[6].innerHTML = '<span class="tag" style="background:#fff3e0; color:#e65100;">🚫 未使用</span>';
               } else {
                 cells[6].innerHTML = '<span class="tag" style="background:#e6f4ea; color:#188038;">✅ 已處理</span>';
+              }
+              
+              // 更新操作者欄
+              if (result.operator) {
+                cells[7].innerHTML = `<small title="${result.operator}">${result.operator.split('@')[0]}</small>`;
               }
               
               updateStats();
@@ -1363,14 +1374,14 @@
         }
 
         // 準備資料
-        const headers = ['#', '處理時間', '信件時間', '狀態', '警訊名稱', '命中資產', '處理結果', '回覆狀態', '使用狀態'];
+        const headers = ['#', '處理時間', '信件時間', '狀態', '警訊名稱', '命中資產', '處理結果', '回覆狀態', '使用狀態', '操作者'];
         const rows = filteredData.map((row, index) => {
-          const [time, status, warningName, asset, action, emailDate, msgId, hasReply, notInUse] = row;
+          const [time, status, warningName, asset, action, emailDate, msgId, hasReply, notInUse, operator] = row;
           let statusText = '安全';
           if (status === 'ALERT') statusText = '風險';
           else if (status === 'ERROR') statusText = '錯誤';
           
-          return [index + 1, time, emailDate || '-', statusText, warningName, asset, action, hasReply || '-', notInUse || '-'];
+          return [index + 1, time, emailDate || '-', statusText, warningName, asset, action, hasReply || '-', notInUse || '-', operator || '-'];
         });
 
         // 建立工作表
@@ -1387,7 +1398,8 @@
           { wch: 20 },  // 命中資產
           { wch: 25 },  // 處理結果
           { wch: 10 },  // 回覆狀態
-          { wch: 10 }   // 使用狀態
+          { wch: 10 },  // 使用狀態
+          { wch: 20 }   // 操作者
         ];
 
         // 建立活頁簿並下載
