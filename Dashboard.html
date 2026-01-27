@@ -620,6 +620,14 @@
             </div>
           </div>
 
+          <!-- 未使用篩選 -->
+          <div class="filter-group">
+            <label>使用狀態</label>
+            <div class="status-checkboxes">
+              <label><input type="checkbox" id="filter-not-in-use" onchange="applyFilters()"> 🚫 僅顯示未使用</label>
+            </div>
+          </div>
+
           <!-- 資產篩選 -->
           <div class="filter-group">
             <label>命中資產</label>
@@ -650,12 +658,13 @@
                 <th width="12%">處理時間</th>
                 <th width="12%">信件時間</th>
                 <th width="8%">狀態</th>
-                <th width="38%">警訊名稱</th>
-                <th width="25%">命中資產 / 處理結果</th>
+                <th width="33%">警訊名稱</th>
+                <th width="22%">命中資產 / 處理結果</th>
+                <th width="8%">使用狀態</th>
               </tr>
             </thead>
             <tbody id="data-body">
-              <tr><td colspan="6" style="text-align:center; padding:20px;">資料載入中...</td></tr>
+              <tr><td colspan="7" style="text-align:center; padding:20px;">資料載入中...</td></tr>
             </tbody>
           </table>
         </div>
@@ -810,14 +819,18 @@
         const showSafe = document.getElementById('filter-safe').checked;
         const showError = document.getElementById('filter-error').checked;
         const assetFilter = document.getElementById('filter-asset').value;
+        const onlyNotInUse = document.getElementById('filter-not-in-use').checked;
 
         filteredData = allData.filter(row => {
-          const [time, status, warningName, asset, action, emailDate] = row;
+          const [time, status, warningName, asset, action, emailDate, msgId, hasReply, notInUse] = row;
           
           // 狀態篩選
           if (status === 'ALERT' && !showAlert) return false;
           if (status === 'SAFE' && !showSafe) return false;
           if (status === 'ERROR' && !showError) return false;
+
+          // 未使用篩選 (僅顯示有命中且標記為未使用的)
+          if (onlyNotInUse && notInUse !== '未使用') return false;
 
           // 資產篩選
           if (assetFilter && asset !== assetFilter) return false;
@@ -846,6 +859,7 @@
         document.getElementById('filter-safe').checked = true;
         document.getElementById('filter-error').checked = true;
         document.getElementById('filter-asset').value = '';
+        document.getElementById('filter-not-in-use').checked = false;
         
         document.querySelectorAll('.quick-filters .btn').forEach(btn => {
           btn.classList.toggle('active', btn.dataset.range === 'all');
@@ -921,7 +935,7 @@
         tbody.innerHTML = '';
 
         if (filteredData.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px;">目前尚無符合條件的紀錄</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px;">目前尚無符合條件的紀錄</td></tr>';
           document.getElementById('showing-count').textContent = '0';
           return;
         }
@@ -939,12 +953,20 @@
         document.getElementById('showing-count').textContent = displayData.length;
 
         displayData.forEach((row, index) => {
-          const [time, status, warningName, asset, action, emailDate] = row;
+          const [time, status, warningName, asset, action, emailDate, msgId, hasReply, notInUse] = row;
           
           let tagClass = 'tag-safe';
           let statusText = '安全';
           if (status === 'ALERT') { tagClass = 'tag-alert'; statusText = '⚠️ 風險'; }
           else if (status === 'ERROR') { tagClass = 'tag-error'; statusText = '錯誤'; }
+
+          // 未使用狀態顯示
+          let usageStatus = '-';
+          if (notInUse === '未使用') {
+            usageStatus = '<span class="tag" style="background:#fff3e0; color:#e65100;">🚫 未使用</span>';
+          } else if (hasReply === '有回覆') {
+            usageStatus = '<span style="color:#999; font-size:12px;">有回覆</span>';
+          }
 
           const globalIndex = pageSize === 'all' 
             ? index + 1 
@@ -958,6 +980,7 @@
             <td><span class="tag ${tagClass}">${statusText}</span></td>
             <td>${warningName}</td>
             <td><strong>${asset}</strong><br><small style="color:#666">${action}</small></td>
+            <td>${usageStatus}</td>
           `;
           tbody.appendChild(tr);
         });
@@ -998,14 +1021,14 @@
         }
 
         // 準備資料
-        const headers = ['#', '處理時間', '信件時間', '狀態', '警訊名稱', '命中資產', '處理結果'];
+        const headers = ['#', '處理時間', '信件時間', '狀態', '警訊名稱', '命中資產', '處理結果', '回覆狀態', '使用狀態'];
         const rows = filteredData.map((row, index) => {
-          const [time, status, warningName, asset, action, emailDate] = row;
+          const [time, status, warningName, asset, action, emailDate, msgId, hasReply, notInUse] = row;
           let statusText = '安全';
           if (status === 'ALERT') statusText = '風險';
           else if (status === 'ERROR') statusText = '錯誤';
           
-          return [index + 1, time, emailDate || '-', statusText, warningName, asset, action];
+          return [index + 1, time, emailDate || '-', statusText, warningName, asset, action, hasReply || '-', notInUse || '-'];
         });
 
         // 建立工作表
@@ -1020,7 +1043,9 @@
           { wch: 8 },   // 狀態
           { wch: 50 },  // 警訊名稱
           { wch: 20 },  // 命中資產
-          { wch: 25 }   // 處理結果
+          { wch: 25 },  // 處理結果
+          { wch: 10 },  // 回覆狀態
+          { wch: 10 }   // 使用狀態
         ];
 
         // 建立活頁簿並下載

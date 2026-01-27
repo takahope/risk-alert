@@ -47,8 +47,8 @@ function getDashboardData() {
     // [修改] 讀取所有資料供前端篩選與統計
     const numRows = lastRow - 1;
     
-    // 讀取前 6 欄用於儀表板顯示 (Timestamp, Status, WarningName, MatchedAsset, Action, Email Date)
-    const values = sheet.getRange(2, 1, numRows, 6).getDisplayValues();
+    // 讀取前 9 欄用於儀表板顯示 (Timestamp, Status, WarningName, MatchedAsset, Action, Email Date, Message ID, Has Reply, Not In Use)
+    const values = sheet.getRange(2, 1, numRows, 9).getDisplayValues();
     
     // 依照 Email Date (index 5) 降序排列 (由近到遠)
     values.sort((a, b) => {
