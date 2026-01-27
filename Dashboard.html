@@ -470,6 +470,50 @@
       .tag-safe { background-color: #e6f4ea; color: var(--success-color); }
       .tag-error { background-color: #333; color: #fff; }
 
+      /* 可展開文字 */
+      .expandable-text {
+        position: relative;
+      }
+
+      .expandable-text .text-content {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        line-height: 1.4;
+        word-break: break-word;
+      }
+
+      .expandable-text.expanded .text-content {
+        display: block;
+        -webkit-line-clamp: unset;
+        line-clamp: unset;
+      }
+
+      .expandable-text .toggle-btn {
+        color: var(--primary-color);
+        cursor: pointer;
+        font-size: 12px;
+        margin-top: 4px;
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        user-select: none;
+      }
+
+      .expandable-text .toggle-btn:hover {
+        text-decoration: underline;
+      }
+
+      .expandable-text .toggle-btn .arrow {
+        transition: transform 0.2s;
+      }
+
+      .expandable-text.expanded .toggle-btn .arrow {
+        transform: rotate(180deg);
+      }
+
       /* 使用狀態按鈕 */
       .usage-btn-group {
         display: flex;
@@ -1197,6 +1241,17 @@
           // 操作者顯示 (取 email 的使用者名稱部分)
           const operatorDisplay = operator ? `<small title="${operator}">${operator.split('@')[0]}</small>` : '<small style="color:#999;">-</small>';
 
+          // 警訊名稱顯示 (可展開)
+          const warningDisplay = warningName && warningName.length > 60 
+            ? `<div class="expandable-text">
+                <div class="text-content">${warningName}</div>
+                <span class="toggle-btn" onclick="toggleExpandText(this)">
+                  <span>顯示更多</span>
+                  <span class="arrow">▼</span>
+                </span>
+              </div>`
+            : warningName || '-';
+
           const globalIndex = pageSize === 'all' 
             ? index + 1 
             : (currentPage - 1) * pageSize + index + 1;
@@ -1207,7 +1262,7 @@
             <td>${time}</td>
             <td>${emailDate || '-'}</td>
             <td><span class="tag ${tagClass}">${statusText}</span></td>
-            <td>${warningName}</td>
+            <td>${warningDisplay}</td>
             <td><strong>${asset}</strong><br><small style="color:#666">${action}</small></td>
             <td>${usageStatus}</td>
             <td>${operatorDisplay}</td>
@@ -1239,6 +1294,16 @@
         currentPage = 1;
         renderTable();
         updatePagination();
+      }
+
+      // ==========================================
+      // 展開/收合文字
+      // ==========================================
+      function toggleExpandText(btn) {
+        const container = btn.closest('.expandable-text');
+        const isExpanded = container.classList.toggle('expanded');
+        const textSpan = btn.querySelector('span:first-child');
+        textSpan.textContent = isExpanded ? '收合' : '顯示更多';
       }
 
       // ==========================================
