@@ -1396,9 +1396,9 @@
           // 操作者顯示 (取 email 的使用者名稱部分)
           const operatorDisplay = operator ? `<small title="${operator}">${operator.split('@')[0]}</small>` : '<small style="color:#999;">-</small>';
 
-          // 建構 Gmail 連結
+          // 建構 Gmail 連結 (使用 Gmail 內部 ID 直接開啟)
           const emailLink = msgId 
-            ? `<a href="https://mail.google.com/mail/u/0/#search/rfc822msgid:${encodeURIComponent(msgId)}" 
+            ? `<a href="https://mail.google.com/mail/u/0/#all/${msgId}" 
                   target="_blank" 
                   rel="noopener noreferrer" 
                   class="email-link" 
