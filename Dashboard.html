@@ -175,12 +175,21 @@
       /* 統計卡片區塊 */
       .stats-container {
         display: grid;
-        grid-template-columns: repeat(5, 1fr);
+        grid-template-columns: repeat(6, 1fr);
         gap: 15px;
         margin-bottom: 20px;
       }
 
-      @media (max-width: 900px) {
+      @media (max-width: 1100px) {
+        .stats-container {
+          grid-template-columns: repeat(3, 1fr);
+        }
+        .stat-card.chart-card {
+          grid-column: span 3;
+        }
+      }
+
+      @media (max-width: 700px) {
         .stats-container {
           grid-template-columns: repeat(2, 1fr);
         }
@@ -224,6 +233,7 @@
       }
 
       .stat-card.alert { border-left: 4px solid var(--danger-color); }
+      .stat-card.pending { border-left: 4px solid #ff9800; }
       .stat-card.safe { border-left: 4px solid var(--success-color); }
       .stat-card.error { border-left: 4px solid #333; }
       .stat-card.total { border-left: 4px solid var(--primary-color); }
@@ -564,6 +574,11 @@
           <div class="value" id="stat-alert">-</div>
           <div class="label">風險警示</div>
         </div>
+        <div class="stat-card pending">
+          <div class="icon">⏳</div>
+          <div class="value" id="stat-pending">-</div>
+          <div class="label">待處理</div>
+        </div>
         <div class="stat-card safe">
           <div class="icon">✅</div>
           <div class="value" id="stat-safe">-</div>
@@ -876,9 +891,12 @@
         const alert = filteredData.filter(r => r[1] === 'ALERT').length;
         const safe = filteredData.filter(r => r[1] === 'SAFE').length;
         const error = filteredData.filter(r => r[1] === 'ERROR').length;
+        // 待處理：狀態為 ALERT 且使用狀態為空（非「未使用」）
+        const pending = filteredData.filter(r => r[1] === 'ALERT' && (!r[8] || r[8] === '')).length;
 
         document.getElementById('stat-total').textContent = total;
         document.getElementById('stat-alert').textContent = alert;
+        document.getElementById('stat-pending').textContent = pending;
         document.getElementById('stat-safe').textContent = safe;
         document.getElementById('stat-error').textContent = error;
 
