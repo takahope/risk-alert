@@ -909,13 +909,17 @@
       function updateChart() {
         const container = document.getElementById('asset-chart');
         
-        // 統計資產命中次數 (只計算 ALERT)
+        // 統計資產命中次數 (只計算 ALERT，並將多個資產分開計算)
         const assetCounts = {};
         filteredData.forEach(row => {
           if (row[1] === 'ALERT') {
-            const asset = row[3];
-            if (asset && asset !== '無相關資產' && asset !== 'N/A') {
-              assetCounts[asset] = (assetCounts[asset] || 0) + 1;
+            const assetField = row[3];
+            if (assetField && assetField !== '無相關資產' && assetField !== 'N/A') {
+              // 將資產欄位以逗號分隔，分別計算每個資產
+              const assets = assetField.split(',').map(a => a.trim()).filter(a => a.length > 0);
+              assets.forEach(asset => {
+                assetCounts[asset] = (assetCounts[asset] || 0) + 1;
+              });
             }
           }
         });
