@@ -104,26 +104,17 @@ function updateUsageStatus(rowIndex, usageStatus) {
 
 /**
  * 透過 Message ID 查找原始郵件
- * @param {string} messageId - Gmail Message ID
+ * @param {string} messageId - Gmail Message ID (內部 ID)
  * @returns {GmailMessage|null}
  */
 function findMessageById(messageId) {
   try {
     if (!messageId) return null;
     
-    // 使用 rfc822msgid 搜尋
-    const threads = GmailApp.search('rfc822msgid:' + messageId);
-    if (threads.length > 0) {
-      const messages = threads[0].getMessages();
-      for (const msg of messages) {
-        if (msg.getId() === messageId) {
-          return msg;
-        }
-      }
-      // 如果找不到完全匹配的，回傳第一封
-      return messages[0];
-    }
-    return null;
+    // [修正] 直接使用 Gmail 內部 ID 取得郵件
+    // message.getId() 回傳的是 Gmail 內部 ID，應使用 getMessageById 而非 rfc822msgid 搜尋
+    const message = GmailApp.getMessageById(messageId);
+    return message || null;
   } catch (e) {
     console.error('查找郵件失敗: ' + e.message);
     return null;
