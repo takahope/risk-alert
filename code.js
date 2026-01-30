@@ -951,3 +951,222 @@ function sendToChat(text) {
     console.error("Chat 通知失敗: " + e.message);
   }
 }
+
+// ==========================================
+// 6. 測試函式 (Test Functions)
+// ==========================================
+
+/**
+ * 📧 寄信測試函式 - 預覽所有郵件類型的內容
+ * 在 Apps Script 編輯器中執行此函式，可在「執行紀錄」中查看郵件預覽
+ * ⚠️ 此函式不會實際發送郵件，僅供測試預覽用
+ */
+function testEmailPreview() {
+  console.log('='.repeat(60));
+  console.log('📧 寄信測試函式 - 郵件內容預覽');
+  console.log('='.repeat(60));
+  console.log('⚠️ 注意：此函式不會實際發送郵件，僅供預覽測試');
+  console.log('');
+  
+  // 模擬資料
+  const testData = {
+    warningName: 'Apache HTTP Server 多個安全漏洞 (CVE-2024-XXXX)',
+    matchedAsset: 'Apache, HTTP Server',
+    userEmail: Session.getActiveUser().getEmail() || 'test@example.com',
+    timestamp: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss"),
+    originalEmailBody: '這是原始郵件內容的模擬摘要...\n警訊名稱：Apache HTTP Server 多個安全漏洞\n影響平台：Apache HTTP Server 2.4.x\n影響等級：高'
+  };
+  
+  const userInfo = {
+    displayName: `測試使用者 (${testData.userEmail})`,
+    name: '測試使用者',
+    email: testData.userEmail
+  };
+  
+  // 讀取當前設定
+  const settings = getSystemSettings();
+  console.log('📋 當前系統設定：');
+  console.log(`   - 掃描已讀信件: ${settings.scanRead ? '是' : '否'}`);
+  console.log(`   - 自動草稿: ${settings.autoDraft ? '是' : '否'}`);
+  console.log(`   - Chat 通知: ${settings.chatNotify ? '是' : '否'}`);
+  console.log(`   - 未使用寄信通知: ${settings.notInUseSendEmail ? '是' : '否'}`);
+  console.log(`   - 已處理寄信通知: ${settings.processedSendEmail ? '是' : '否'}`);
+  console.log('');
+  
+  // ====== 情境 1: 資產命中 - 寄信給 Person A ======
+  console.log('-'.repeat(60));
+  console.log('📬 情境 1: 資產命中 - 通知 Person A');
+  console.log('-'.repeat(60));
+  console.log(`收件者: ${CONFIG.PERSON_A_EMAIL}`);
+  console.log(`主旨: [資產風險警示] 發現內部資產 ${testData.matchedAsset} 相關漏洞`);
+  console.log('');
+  console.log('郵件內容:');
+  console.log('---');
+  console.log(`親愛的 A：
+
+系統檢測到最新的漏洞預警通報內容與資訊資產名稱 "${testData.matchedAsset}" 有相關性。
+警訊名稱：${testData.warningName}
+
+請儘速確認並評估影響範圍。
+
+原始信件內容摘要：
+${testData.originalEmailBody.substring(0, 300)}...
+
+此郵件由系統自動發送。`);
+  console.log('---');
+  console.log('');
+  
+  // ====== 情境 2: 無相關資產 - 回覆寄件者 ======
+  console.log('-'.repeat(60));
+  console.log('📬 情境 2: 無相關資產 - 回覆原寄件者');
+  console.log('-'.repeat(60));
+  console.log(`收件者: ${CONFIG.SENDER_B_EMAILS[0]} (回覆原始郵件)`);
+  console.log('');
+  console.log('郵件內容:');
+  console.log('---');
+  console.log(`您好，
+
+已收到漏洞預警通知：
+「${testData.warningName}」
+
+經確認，無相關軟硬體資產，無需處理。
+感謝通知。
+
+此郵件由系統自動發送。`);
+  console.log('---');
+  console.log('');
+  
+  // ====== 情境 3: 手動標記「未使用」======
+  console.log('-'.repeat(60));
+  console.log('📬 情境 3: 手動標記「未使用」- 回覆寄件者');
+  console.log('-'.repeat(60));
+  console.log(`收件者: ${CONFIG.SENDER_B_EMAILS[0]} (回覆原始郵件)`);
+  console.log(`觸發條件: 使用者在儀表板點選「未使用」且 notInUseSendEmail=${settings.notInUseSendEmail ? '是' : '否'}`);
+  console.log('');
+  console.log('郵件內容:');
+  console.log('---');
+  console.log(`您好，
+
+已收到漏洞預警通知：
+「${testData.warningName}」
+
+經人工確認，相關資產「${testData.matchedAsset}」無需處理。
+感謝通知。
+
+處理人員：${userInfo.displayName}
+
+此郵件由系統自動發送。`);
+  console.log('---');
+  console.log('');
+  
+  // ====== 情境 4: 手動標記「已處理」======
+  console.log('-'.repeat(60));
+  console.log('📬 情境 4: 手動標記「已處理」- 回覆寄件者');
+  console.log('-'.repeat(60));
+  console.log(`收件者: ${CONFIG.SENDER_B_EMAILS[0]} (回覆原始郵件)`);
+  console.log(`觸發條件: 使用者在儀表板點選「已處理」且 processedSendEmail=${settings.processedSendEmail ? '是' : '否'}`);
+  console.log('');
+  console.log('郵件內容:');
+  console.log('---');
+  console.log(`您好，
+
+關於漏洞預警通知：
+「${testData.warningName}」
+
+經評估確認影響範圍，相關資產「${testData.matchedAsset}」已完成必要之風險處置措施。
+
+處理人員：${userInfo.displayName}
+處理時間：${testData.timestamp}
+
+如有任何問題，請隨時聯繫。
+
+此郵件由系統自動發送。`);
+  console.log('---');
+  console.log('');
+  
+  // ====== 設定摘要 ======
+  console.log('='.repeat(60));
+  console.log('📊 郵件發送邏輯摘要');
+  console.log('='.repeat(60));
+  console.log('');
+  console.log('【自動掃描時】');
+  console.log(`  資產命中 → ${settings.notInUseSendEmail ? '直接寄信給 Person A' : (settings.autoDraft ? '建立草稿' : '僅紀錄')}`);
+  console.log(`  無命中   → ${settings.notInUseSendEmail ? '直接寄信回覆' : (settings.autoDraft ? '建立回覆草稿' : '僅紀錄')}`);
+  console.log('');
+  console.log('【手動操作時】');
+  console.log(`  點選「未使用」→ ${settings.notInUseSendEmail ? '直接寄信回覆' : (settings.autoDraft ? '建立草稿' : '僅更新狀態')}`);
+  console.log(`  點選「已處理」→ ${settings.processedSendEmail ? '直接寄信回覆' : (settings.autoDraft ? '建立草稿' : '僅更新狀態')}`);
+  console.log('');
+  console.log('='.repeat(60));
+  console.log('✅ 測試完成！以上為郵件內容預覽，未實際發送任何郵件。');
+  console.log('='.repeat(60));
+}
+
+/**
+ * 📧 實際發送測試郵件（給自己）
+ * ⚠️ 此函式會實際發送一封測試郵件到你的信箱
+ */
+function testSendEmailToMyself() {
+  const myEmail = Session.getActiveUser().getEmail();
+  
+  if (!myEmail) {
+    console.error('❌ 無法取得你的 Email 地址');
+    return;
+  }
+  
+  console.log('='.repeat(60));
+  console.log('📧 實際發送測試郵件');
+  console.log('='.repeat(60));
+  console.log(`收件者: ${myEmail}`);
+  console.log('');
+  
+  const subject = '[測試郵件] 資安預警系統寄信功能測試';
+  const body = `
+這是一封測試郵件。
+
+系統資訊：
+- 發送時間: ${Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss")}
+- Person A Email: ${CONFIG.PERSON_A_EMAIL}
+- 寄件者 Email: ${CONFIG.SENDER_B_EMAILS.join(', ')}
+
+如果你收到這封郵件，表示寄信功能運作正常。
+
+此郵件由系統自動發送。
+  `.trim();
+  
+  try {
+    GmailApp.sendEmail(myEmail, subject, body);
+    console.log('✅ 測試郵件已發送！請檢查你的收件匣。');
+  } catch (e) {
+    console.error('❌ 發送失敗: ' + e.message);
+  }
+}
+
+/**
+ * 📋 列出所有設定值
+ * 用於快速檢視當前系統設定
+ */
+function testShowCurrentSettings() {
+  console.log('='.repeat(60));
+  console.log('📋 當前系統設定');
+  console.log('='.repeat(60));
+  
+  const settings = getSystemSettings();
+  
+  console.log('');
+  console.log('【基本設定】');
+  console.log(`  掃描已讀信件 (A2): ${settings.scanRead ? '✅ 是' : '❌ 否'}`);
+  console.log(`  自動草稿 (B2): ${settings.autoDraft ? '✅ 是' : '❌ 否'}`);
+  console.log(`  Chat 通知 (C2): ${settings.chatNotify ? '✅ 是' : '❌ 否'}`);
+  console.log('');
+  console.log('【自動寄信設定】');
+  console.log(`  未使用寄信通知 (G2): ${settings.notInUseSendEmail ? '✅ 是' : '❌ 否'}`);
+  console.log(`  已處理寄信通知 (H2): ${settings.processedSendEmail ? '✅ 是' : '❌ 否'}`);
+  console.log('');
+  console.log('【郵件收件者設定】');
+  console.log(`  Person A: ${CONFIG.PERSON_A_EMAIL}`);
+  console.log(`  寄件者篩選: ${CONFIG.SENDER_B_EMAILS.join(', ')}`);
+  console.log(`  標題關鍵字: ${CONFIG.SUBJECT_KEYWORDS.join(', ')}`);
+  console.log('');
+  console.log('='.repeat(60));
+}
