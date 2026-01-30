@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系統設定</title>
+    <style>
+      :root {
+        --primary-color: #1a73e8;
+        --danger-color: #d93025;
+        --success-color: #188038;
+        --warning-color: #f9ab00;
+        --bg-color: #f8f9fa;
+        --card-bg: #ffffff;
+        --border-color: #e0e0e0;
+      }
+      
+      body {
+        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        background-color: var(--bg-color);
+        color: #333;
+        margin: 0;
+        padding: 20px;
+      }
+
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+      }
+
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 30px;
+        flex-wrap: wrap;
+        gap: 15px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 24px;
+        color: #202124;
+      }
+
+      .btn {
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        text-decoration: none;
+      }
+
+      .btn-secondary {
+        background-color: #5f6368;
+        color: white;
+      }
+
+      .btn-secondary:hover {
+        background-color: #4a4e51;
+      }
+
+      .btn-primary {
+        background-color: var(--primary-color);
+        color: white;
+      }
+
+      .btn-primary:hover {
+        background-color: #1557b0;
+      }
+
+      /* 設定卡片樣式 */
+      .settings-card {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(60,64,67,0.3);
+        margin-bottom: 20px;
+        overflow: hidden;
+      }
+
+      .settings-card-header {
+        background: linear-gradient(135deg, var(--primary-color), #4285f4);
+        color: white;
+        padding: 20px;
+        font-size: 18px;
+        font-weight: 600;
+      }
+
+      .settings-card-body {
+        padding: 20px;
+      }
+
+      .setting-group {
+        margin-bottom: 25px;
+      }
+
+      .setting-group:last-child {
+        margin-bottom: 0;
+      }
+
+      .setting-group-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: #5f6368;
+        margin-bottom: 15px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .setting-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 15px 0;
+        border-bottom: 1px solid var(--border-color);
+      }
+
+      .setting-row:last-child {
+        border-bottom: none;
+      }
+
+      .setting-info {
+        flex: 1;
+      }
+
+      .setting-label {
+        font-size: 15px;
+        font-weight: 500;
+        color: #202124;
+        margin-bottom: 4px;
+      }
+
+      .setting-description {
+        font-size: 13px;
+        color: #5f6368;
+      }
+
+      /* Toggle Switch CSS */
+      .switch {
+        position: relative;
+        display: inline-block;
+        width: 50px;
+        height: 26px;
+        flex-shrink: 0;
+      }
+
+      .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+
+      .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #ccc;
+        transition: .4s;
+        border-radius: 34px;
+      }
+
+      .slider:before {
+        position: absolute;
+        content: "";
+        height: 20px;
+        width: 20px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: .4s;
+        border-radius: 50%;
+      }
+
+      input:checked + .slider {
+        background-color: var(--success-color);
+      }
+
+      input:checked + .slider:before {
+        transform: translateX(24px);
+      }
+
+      /* 狀態提示 */
+      .status-indicator {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+        margin-left: 10px;
+      }
+
+      .status-on {
+        background-color: #e6f4ea;
+        color: var(--success-color);
+      }
+
+      .status-off {
+        background-color: #fce8e6;
+        color: var(--danger-color);
+      }
+
+      /* Toast 通知 */
+      .toast {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: #323232;
+        color: white;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-size: 14px;
+        z-index: 1000;
+        opacity: 0;
+        transition: opacity 0.3s;
+      }
+
+      .toast.show {
+        opacity: 1;
+      }
+
+      /* 載入中遮罩 */
+      .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255,255,255,0.9);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 999;
+      }
+
+      .loading-spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid var(--primary-color);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+
+      /* 警告提示 */
+      .warning-banner {
+        background-color: #fff3cd;
+        border: 1px solid #ffc107;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+      }
+
+      .warning-banner .icon {
+        font-size: 20px;
+      }
+
+      .warning-banner .text {
+        font-size: 14px;
+        color: #856404;
+      }
+
+      /* 響應式設計 */
+      @media (max-width: 600px) {
+        .setting-row {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 10px;
+        }
+
+        .switch {
+          align-self: flex-end;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- 載入中遮罩 -->
+    <div class="loading-overlay" id="loading-overlay">
+      <div class="loading-spinner"></div>
+    </div>
+
+    <div class="container">
+      <header>
+        <h1>⚙️ 系統設定</h1>
+        <a href="?" class="btn btn-secondary">← 返回儀表板</a>
+      </header>
+
+      <!-- 警告提示 -->
+      <div class="warning-banner">
+        <span class="icon">⚠️</span>
+        <span class="text">請謹慎修改以下設定，變更將立即生效。開啟「寄信通知」功能會自動發送郵件，請確認後再啟用。</span>
+      </div>
+
+      <!-- 基本設定 -->
+      <div class="settings-card">
+        <div class="settings-card-header">📧 郵件掃描設定</div>
+        <div class="settings-card-body">
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-label">掃描已讀信件</div>
+              <div class="setting-description">開啟後會掃描所有信件（包含已讀），關閉則只掃描未讀信件</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="toggle-scanRead" onchange="updateSetting('scanRead')">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- 草稿與通知設定 -->
+      <div class="settings-card">
+        <div class="settings-card-header">📝 草稿與通知設定</div>
+        <div class="settings-card-body">
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-label">開啟自動草稿</div>
+              <div class="setting-description">掃描到郵件時自動建立回覆草稿，需手動檢視後再發送</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="toggle-autoDraft" onchange="updateSetting('autoDraft')">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-label">開啟 Chat 通知</div>
+              <div class="setting-description">處理郵件後發送 Google Chat 通知</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="toggle-chatNotify" onchange="updateSetting('chatNotify')">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- 自動寄信設定 -->
+      <div class="settings-card">
+        <div class="settings-card-header">🚀 自動寄信設定（謹慎使用）</div>
+        <div class="settings-card-body">
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-label">
+                未使用寄信通知
+                <span class="status-indicator status-off" id="status-notInUseSendEmail">已關閉</span>
+              </div>
+              <div class="setting-description">開啟後，標記為「未使用」時會<strong>直接發送郵件</strong>回覆寄件者，而非建立草稿</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="toggle-notInUseSendEmail" onchange="updateSetting('notInUseSendEmail')">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-label">
+                已處理寄信通知
+                <span class="status-indicator status-off" id="status-processedSendEmail">已關閉</span>
+              </div>
+              <div class="setting-description">開啟後，標記為「已處理」時會<strong>直接發送郵件</strong>回覆寄件者，而非建立草稿</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="toggle-processedSendEmail" onchange="updateSetting('processedSendEmail')">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Toast 通知 -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+      // 頁面載入時讀取設定
+      document.addEventListener('DOMContentLoaded', function() {
+        loadSettings();
+      });
+
+      function loadSettings() {
+        google.script.run.withSuccessHandler(function(settings) {
+          // 設定開關狀態
+          document.getElementById('toggle-scanRead').checked = settings.scanRead;
+          document.getElementById('toggle-autoDraft').checked = settings.autoDraft;
+          document.getElementById('toggle-chatNotify').checked = settings.chatNotify;
+          document.getElementById('toggle-notInUseSendEmail').checked = settings.notInUseSendEmail;
+          document.getElementById('toggle-processedSendEmail').checked = settings.processedSendEmail;
+          
+          // 更新狀態指示器
+          updateStatusIndicator('notInUseSendEmail', settings.notInUseSendEmail);
+          updateStatusIndicator('processedSendEmail', settings.processedSendEmail);
+          
+          // 隱藏載入遮罩
+          document.getElementById('loading-overlay').style.display = 'none';
+        }).withFailureHandler(function(error) {
+          showToast('載入設定失敗: ' + error.message);
+          document.getElementById('loading-overlay').style.display = 'none';
+        }).getSystemSettings();
+      }
+
+      function updateSetting(key) {
+        const checkbox = document.getElementById('toggle-' + key);
+        const isEnabled = checkbox.checked;
+        
+        google.script.run.withSuccessHandler(function() {
+          showToast('設定已更新');
+          
+          // 更新狀態指示器（如果有的話）
+          if (key === 'notInUseSendEmail' || key === 'processedSendEmail') {
+            updateStatusIndicator(key, isEnabled);
+          }
+        }).withFailureHandler(function(error) {
+          showToast('更新失敗: ' + error.message);
+          // 恢復原狀態
+          checkbox.checked = !isEnabled;
+        }).updateSystemSetting(key, isEnabled);
+      }
+
+      function updateStatusIndicator(key, isEnabled) {
+        const indicator = document.getElementById('status-' + key);
+        if (indicator) {
+          if (isEnabled) {
+            indicator.textContent = '已開啟';
+            indicator.className = 'status-indicator status-on';
+          } else {
+            indicator.textContent = '已關閉';
+            indicator.className = 'status-indicator status-off';
+          }
+        }
+      }
+
+      function showToast(message) {
+        const toast = document.getElementById('toast');
+        toast.textContent = message;
+        toast.classList.add('show');
+        setTimeout(() => {
+          toast.classList.remove('show');
+        }, 3000);
+      }
+    </script>
+  </body>
+</html>

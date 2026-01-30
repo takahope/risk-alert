@@ -1413,48 +1413,13 @@
 
       <!-- 功能開關控制面板 -->
       <div class="settings-panel">
-        <div class="switches-container">
-          <div class="setting-item">
-            <label class="switch">
-              <input type="checkbox" id="toggle-scanRead" onchange="updateSetting('scanRead')">
-              <span class="slider"></span>
-            </label>
-            <span>掃描已讀信件</span>
-          </div>
-          <div class="setting-item">
-            <label class="switch">
-              <input type="checkbox" id="toggle-autoDraft" onchange="updateSetting('autoDraft')">
-              <span class="slider"></span>
-            </label>
-            <span>開啟自動草稿</span>
-          </div>
-          <div class="setting-item">
-            <label class="switch">
-              <input type="checkbox" id="toggle-chatNotify" onchange="updateSetting('chatNotify')">
-              <span class="slider"></span>
-            </label>
-            <span>開啟 Chat 通知</span>
-          </div>
-          <div class="setting-item">
-            <label class="switch">
-              <input type="checkbox" id="toggle-notInUseSendEmail" onchange="updateSetting('notInUseSendEmail')">
-              <span class="slider"></span>
-            </label>
-            <span>未使用寄信通知</span>
-          </div>
-          <div class="setting-item">
-            <label class="switch">
-              <input type="checkbox" id="toggle-processedSendEmail" onchange="updateSetting('processedSendEmail')">
-              <span class="slider"></span>
-            </label>
-            <span>已處理寄信通知</span>
-          </div>
-        </div>
-        
-        <div>
+        <div class="action-buttons">
           <button id="btn-scan" class="btn btn-primary" onclick="triggerScan()">
             🚀 立即掃描信件
           </button>
+          <a href="?page=settings" class="btn btn-outline" style="text-decoration: none;">
+            ⚙️ 系統設定
+          </a>
         </div>
       </div>
 
@@ -1644,28 +1609,7 @@
       }
 
       function refreshAll() {
-        loadSettings();
         loadData();
-      }
-
-      // ==========================================
-      // 設定相關
-      // ==========================================
-      function loadSettings() {
-        google.script.run.withSuccessHandler(function(settings) {
-          document.getElementById('toggle-scanRead').checked = settings.scanRead;
-          document.getElementById('toggle-autoDraft').checked = settings.autoDraft;
-          document.getElementById('toggle-chatNotify').checked = settings.chatNotify;
-          document.getElementById('toggle-notInUseSendEmail').checked = settings.notInUseSendEmail;
-          document.getElementById('toggle-processedSendEmail').checked = settings.processedSendEmail;
-        }).getSystemSettings();
-      }
-
-      function updateSetting(key) {
-        const isEnabled = document.getElementById('toggle-' + key).checked;
-        google.script.run.withSuccessHandler(function() {
-          console.log(key + " updated to " + isEnabled);
-        }).updateSystemSetting(key, isEnabled);
       }
 
       // ==========================================
