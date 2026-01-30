@@ -1435,6 +1435,13 @@
             </label>
             <span>開啟 Chat 通知</span>
           </div>
+          <div class="setting-item">
+            <label class="switch">
+              <input type="checkbox" id="toggle-notInUseSendEmail" onchange="updateSetting('notInUseSendEmail')">
+              <span class="slider"></span>
+            </label>
+            <span>未使用寄信通知</span>
+          </div>
         </div>
         
         <div>
@@ -1642,6 +1649,7 @@
           document.getElementById('toggle-scanRead').checked = settings.scanRead;
           document.getElementById('toggle-autoDraft').checked = settings.autoDraft;
           document.getElementById('toggle-chatNotify').checked = settings.chatNotify;
+          document.getElementById('toggle-notInUseSendEmail').checked = settings.notInUseSendEmail;
         }).getSystemSettings();
       }
 

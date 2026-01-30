@@ -18,11 +18,12 @@ function doGet() {
 function getSystemSettings() {
   ensureSettingsSheetExists();
   const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.SETTINGS_SHEET_NAME);
-  const values = sheet.getRange("A2:C2").getDisplayValues()[0];
+  const values = sheet.getRange("A2:G2").getDisplayValues()[0];
   return {
     scanRead: values[0] === "是",
     autoDraft: values[1] === "是",
-    chatNotify: values[2] === "是"
+    chatNotify: values[2] === "是",
+    notInUseSendEmail: values[6] === "是"  // G2: 未使用寄信通知
   };
 }
 
@@ -33,6 +34,7 @@ function updateSystemSetting(key, isEnabled) {
   if (key === 'scanRead') sheet.getRange("A2").setValue(val);
   if (key === 'autoDraft') sheet.getRange("B2").setValue(val);
   if (key === 'chatNotify') sheet.getRange("C2").setValue(val);
+  if (key === 'notInUseSendEmail') sheet.getRange("G2").setValue(val);  // G2: 未使用寄信通知
   
   return { success: true };
 }
@@ -72,30 +74,42 @@ function updateUsageStatus(rowIndex, usageStatus) {
       sheet.getRange(actualRow, 2).setValue('SAFE');
     }
     
-    // 檢查是否啟用自動草稿
+    // 檢查設定
     const settings = getSystemSettings();
     let draftCreated = false;
+    let emailSent = false;
     
-    if (settings.autoDraft && messageId) {
+    if (messageId) {
       // 嘗試透過 Message ID 找到原始郵件
       const originalMessage = findMessageById(messageId);
       const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
       
       if (usageStatus === '未使用') {
-        draftCreated = createDraftForNotInUse(warningName, matchedAsset, userInfo, originalMessage, settings);
+        // 未使用情境：優先判斷 notInUseSendEmail
+        if (settings.notInUseSendEmail) {
+          // 直接寄信回覆寄件者
+          emailSent = sendEmailForNotInUse(warningName, matchedAsset, userInfo, originalMessage, settings);
+        } else if (settings.autoDraft) {
+          // 建立草稿
+          draftCreated = createDraftForNotInUse(warningName, matchedAsset, userInfo, originalMessage, settings);
+        }
       } else if (usageStatus === '已處理') {
-        draftCreated = createDraftForProcessed(warningName, matchedAsset, userInfo, timestamp, originalMessage, settings);
+        // 已處理情境：僅判斷 autoDraft
+        if (settings.autoDraft) {
+          draftCreated = createDraftForProcessed(warningName, matchedAsset, userInfo, timestamp, originalMessage, settings);
+        }
       }
       
-      // 更新 E 欄 (Action) 加上草稿資訊
-      if (draftCreated) {
+      // 更新 E 欄 (Action) 加上草稿/寄信資訊
+      if (draftCreated || emailSent) {
         const currentAction = sheet.getRange(actualRow, 5).getValue();
-        const newAction = currentAction + ` | ${usageStatus}草稿已建立`;
+        const actionType = emailSent ? '郵件已發送' : '草稿已建立';
+        const newAction = currentAction + ` | ${usageStatus}${actionType}`;
         sheet.getRange(actualRow, 5).setValue(newAction);
       }
     }
     
-    return { success: true, operator: userEmail, displayName: userInfo.displayName, draftCreated: draftCreated };
+    return { success: true, operator: userEmail, displayName: userInfo.displayName, draftCreated: draftCreated, emailSent: emailSent };
   } catch (e) {
     console.error('更新使用狀態失敗: ' + e.message);
     return { success: false, error: e.message };
@@ -344,8 +358,14 @@ function processSingleMessage(message, assetList, settings) {
     // [修改] 將所有命中資產合併為字串
     const matchedAssetStr = uniqueAssets.join(', ');
     
-    let actionLog = '僅紀錄 (自動草稿已關閉)';
-    if (settings.autoDraft) {
+    let actionLog = '僅紀錄';
+    
+    // 優先判斷 notInUseSendEmail（直接寄信）
+    if (settings.notInUseSendEmail) {
+      sendEmailForPersonA(warningName, matchedAssetStr, message, settings);
+      actionLog = '已直接寄信給 Person A';
+    } else if (settings.autoDraft) {
+      // 其次判斷 autoDraft（建立草稿）
       createDraftForPersonA(warningName, matchedAssetStr, message, settings);
       actionLog = '已建立通知草稿';
     } else if (settings.chatNotify) {
@@ -355,8 +375,14 @@ function processSingleMessage(message, assetList, settings) {
     logExecutionResult('ALERT', warningName, matchedAssetStr, actionLog, msgId, emailDate, hasReply, notInUse, '');
   } else {
     // 無命中資產：直接標記為 SAFE 和 未使用
-    let actionLog = '僅紀錄 (自動草稿已關閉)';
-    if (settings.autoDraft) {
+    let actionLog = '僅紀錄';
+    
+    // 優先判斷 notInUseSendEmail（直接寄信回覆）
+    if (settings.notInUseSendEmail) {
+      sendEmailReplyToSenderB(warningName, message, settings);
+      actionLog = '已直接寄信回覆';
+    } else if (settings.autoDraft) {
+      // 其次判斷 autoDraft（建立回覆草稿）
       createDraftReplyToSenderB(warningName, message, settings);
       actionLog = '已建立回覆草稿';
     }
@@ -473,8 +499,8 @@ function ensureSettingsSheetExists() {
   let settingSheet = ss.getSheetByName(CONFIG.SETTINGS_SHEET_NAME);
   if (!settingSheet) {
     settingSheet = ss.insertSheet(CONFIG.SETTINGS_SHEET_NAME);
-    settingSheet.appendRow(['掃描已讀信件 (A2)', '開啟自動草稿 (B2)', '開啟Chat通知 (C2)', '授權使用者 (D欄)', '使用者姓名 (E欄)']);
-    settingSheet.appendRow(['否', '是', '是', '', '']);
+    settingSheet.appendRow(['掃描已讀信件 (A2)', '開啟自動草稿 (B2)', '開啟Chat通知 (C2)', '授權使用者 (D欄)', '使用者姓名 (E欄)', '保留欄位 (F欄)', '未使用寄信通知 (G2)']);
+    settingSheet.appendRow(['否', '是', '是', '', '', '', '否']);
   }
 }
 
@@ -647,6 +673,126 @@ function createDraftReplyToSenderB(warningName, originalMessage, settings) {
     sendToChat(`✅ **[無相關資產] 已建立回覆草稿**\n警訊名稱：${warningName}`);
   }
 }
+
+// ==========================================
+// 5.1 直接寄信服務（未使用寄信通知功能）
+// ==========================================
+
+/**
+ * 直接寄信給 Person A（資產命中時）
+ * @param {string} warningName - 警訊名稱
+ * @param {string} matchedAsset - 命中資產
+ * @param {GmailMessage} originalMessage - 原始郵件
+ * @param {Object} settings - 系統設定
+ */
+function sendEmailForPersonA(warningName, matchedAsset, originalMessage, settings) {
+  try {
+    const subject = `[資產風險警示] 發現內部資產 ${matchedAsset} 相關漏洞`;
+    const body = `
+親愛的 A：
+
+系統檢測到最新的漏洞預警通報內容與資訊資產名稱 "${matchedAsset}" 有相關性。
+警訊名稱：${warningName}
+
+請儘速確認並評估影響範圍。
+
+原始信件內容摘要：
+${originalMessage.getPlainBody().substring(0, 300)}...
+
+此郵件由系統自動發送。
+    `.trim();
+    
+    GmailApp.sendEmail(CONFIG.PERSON_A_EMAIL, subject, body);
+    
+    if (settings.chatNotify) {
+      sendToChat(`📧 **[資產命中] 已直接寄信給 Person A**\n偵測資產：${matchedAsset}\n警訊名稱：${warningName}`);
+    }
+    
+    return true;
+  } catch (e) {
+    console.error('寄信給 Person A 失敗: ' + e.message);
+    return false;
+  }
+}
+
+/**
+ * 直接回覆寄件者（無相關資產時）
+ * @param {string} warningName - 警訊名稱
+ * @param {GmailMessage} originalMessage - 原始郵件
+ * @param {Object} settings - 系統設定
+ */
+function sendEmailReplyToSenderB(warningName, originalMessage, settings) {
+  try {
+    const replyBody = `
+您好，
+
+已收到漏洞預警通知：
+「${warningName}」
+
+經確認，無相關軟硬體資產，無需處理。
+感謝通知。
+
+此郵件由系統自動發送。
+    `.trim();
+    
+    originalMessage.reply(replyBody);
+    
+    if (settings.chatNotify) {
+      sendToChat(`📧 **[無相關資產] 已直接寄信回覆**\n警訊名稱：${warningName}`);
+    }
+    
+    return true;
+  } catch (e) {
+    console.error('回覆寄件者失敗: ' + e.message);
+    return false;
+  }
+}
+
+/**
+ * 直接寄信回覆（未使用情境 - 手動操作）
+ * @param {string} warningName - 警訊名稱
+ * @param {string} matchedAsset - 命中資產
+ * @param {Object} userInfo - 操作者資訊
+ * @param {GmailMessage|null} originalMessage - 原始郵件
+ * @param {Object} settings - 系統設定
+ * @returns {boolean} 是否成功寄信
+ */
+function sendEmailForNotInUse(warningName, matchedAsset, userInfo, originalMessage, settings) {
+  try {
+    const replyBody = `
+您好，
+
+已收到漏洞預警通知：
+「${warningName}」
+
+經人工確認，相關資產「${matchedAsset}」無需處理。
+感謝通知。
+
+處理人員：${userInfo.displayName}
+
+此郵件由系統自動發送。
+    `.trim();
+    
+    if (originalMessage) {
+      // 直接回覆原始郵件
+      originalMessage.reply(replyBody);
+    } else {
+      // 無法找到原始郵件，發送獨立郵件
+      const subject = `[無需處理] ${warningName}`;
+      GmailApp.sendEmail(CONFIG.SENDER_B_EMAILS[0] || '', subject, replyBody);
+    }
+    
+    if (settings.chatNotify) {
+      sendToChat(`📧 **[未使用] 已直接寄信回覆**\n警訊：${warningName}\n資產：${matchedAsset}\n處理者：${userInfo.displayName}`);
+    }
+    
+    return true;
+  } catch (e) {
+    console.error('寄信回覆失敗: ' + e.message);
+    return false;
+  }
+}
+
 /**
  * 建立「未使用」情境的回覆草稿
  * @param {string} warningName - 警訊名稱
