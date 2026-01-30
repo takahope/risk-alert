@@ -409,6 +409,156 @@
         opacity: 1;
       }
 
+      /* 郵件預覽說明圖示 */
+      .info-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background-color: #e8f0fe;
+        color: #1a73e8;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: none;
+        padding: 0;
+        margin-left: 4px;
+        font-weight: bold;
+      }
+
+      .info-icon:hover {
+        background-color: #1a73e8;
+        color: white;
+        transform: scale(1.1);
+      }
+
+      /* 郵件預覽子 Modal */
+      .email-preview-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.6);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 3500;
+        padding: 20px;
+      }
+
+      .email-preview-overlay.show {
+        display: flex;
+      }
+
+      .email-preview-modal {
+        background: #fff;
+        border-radius: 12px;
+        max-width: 650px;
+        width: 100%;
+        max-height: 80vh;
+        overflow: hidden;
+        box-shadow: 0 24px 48px rgba(0,0,0,0.2);
+        animation: previewSlideIn 0.25s ease;
+      }
+
+      @keyframes previewSlideIn {
+        from {
+          opacity: 0;
+          transform: scale(0.95);
+        }
+        to {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+
+      .email-preview-header {
+        background: linear-gradient(135deg, #4285f4, #5e97f6);
+        color: white;
+        padding: 16px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .email-preview-header h3 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 600;
+      }
+
+      .email-preview-close {
+        background: rgba(255,255,255,0.2);
+        border: none;
+        color: white;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.2s;
+      }
+
+      .email-preview-close:hover {
+        background: rgba(255,255,255,0.3);
+      }
+
+      .email-preview-body {
+        padding: 20px;
+        overflow-y: auto;
+        max-height: calc(80vh - 120px);
+      }
+
+      .email-preview-meta {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin-bottom: 16px;
+        font-size: 13px;
+      }
+
+      .email-preview-meta p {
+        margin: 4px 0;
+        color: #5f6368;
+      }
+
+      .email-preview-meta strong {
+        color: #202124;
+      }
+
+      .email-preview-content {
+        background: #fafafa;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 16px;
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        font-size: 13px;
+        line-height: 1.6;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        color: #333;
+        max-height: 350px;
+        overflow-y: auto;
+      }
+
+      .email-preview-footer {
+        padding: 12px 20px;
+        background: #f8f9fa;
+        border-top: 1px solid #e0e0e0;
+        display: flex;
+        justify-content: flex-end;
+      }
+
+      .email-preview-footer .btn {
+        padding: 8px 20px;
+      }
+
       @media (max-width: 600px) {
         .settings-modal {
           margin: 10px;
@@ -1700,9 +1850,10 @@
               <div class="settings-info">
                 <div class="settings-label">
                   命中資產通知 Person A
+                  <button class="info-icon" onclick="showEmailPreview('assetHit')" title="查看郵件範例">？</button>
                   <span class="status-badge on" id="badge-assetHitNotify">已啟用</span>
                 </div>
-                <div class="settings-description">開啟後，掃描到有命中資產時會<strong>直接發送郵件</strong>通知 Person A</div>
+                <div class="settings-description">開啟後，掃描到有命中資產時會<strong>直接轉寄郵件</strong>通知 Person A</div>
               </div>
               <label class="settings-switch">
                 <input type="checkbox" id="setting-assetHitNotify" onchange="updateSettingValue('assetHitNotify')">
@@ -1718,6 +1869,7 @@
               <div class="settings-info">
                 <div class="settings-label">
                   未使用寄信通知
+                  <button class="info-icon" onclick="showEmailPreview('notInUse')" title="查看郵件範例">？</button>
                   <span class="status-badge off" id="badge-notInUseSendEmail">已關閉</span>
                 </div>
                 <div class="settings-description">開啟後，<strong>無命中資產</strong>或手動標記為「未使用」時會直接發送郵件回覆寄件者</div>
@@ -1731,6 +1883,7 @@
               <div class="settings-info">
                 <div class="settings-label">
                   已處理寄信通知
+                  <button class="info-icon" onclick="showEmailPreview('processed')" title="查看郵件範例">？</button>
                   <span class="status-badge off" id="badge-processedSendEmail">已關閉</span>
                 </div>
                 <div class="settings-description">開啟後，標記為「已處理」時會<strong>直接發送郵件</strong>回覆寄件者</div>
@@ -1747,6 +1900,27 @@
 
     <!-- 設定 Toast 通知 -->
     <div class="settings-toast" id="settings-toast"></div>
+
+    <!-- 郵件預覽子 Modal -->
+    <div class="email-preview-overlay" id="email-preview-overlay">
+      <div class="email-preview-modal">
+        <div class="email-preview-header">
+          <h3 id="email-preview-title">📧 郵件範例</h3>
+          <button class="email-preview-close" onclick="closeEmailPreview()">&times;</button>
+        </div>
+        <div class="email-preview-body">
+          <div class="email-preview-meta" id="email-preview-meta">
+            <!-- 動態填入郵件 meta 資訊 -->
+          </div>
+          <div class="email-preview-content" id="email-preview-content">
+            <!-- 動態填入郵件內容 -->
+          </div>
+        </div>
+        <div class="email-preview-footer">
+          <button class="btn btn-outline" onclick="closeEmailPreview()">關閉</button>
+        </div>
+      </div>
+    </div>
 
     <!-- 載入中遮罩 -->
     <div id="loading-overlay" class="loading-overlay">
@@ -2725,6 +2899,100 @@
       document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
           closeSettingsModal();
+          closeEmailPreview();
+        }
+      });
+
+      // ==========================================
+      // 郵件預覽功能
+      // ==========================================
+      const emailPreviewTemplates = {
+        assetHit: {
+          title: '📧 命中資產通知 - 郵件範例',
+          meta: `
+            <p><strong>觸發時機：</strong>掃描郵件時偵測到命中資產</p>
+            <p><strong>收件者：</strong>Person A（資產負責人）</p>
+            <p><strong>寄信方式：</strong>轉寄原始郵件（含完整原始信件內容）</p>
+            <p><strong>主旨格式：</strong>Fwd: [原始郵件主旨]</p>
+          `,
+          content: `親愛的 A：
+
+系統檢測到最新的漏洞預警通報內容與資訊資產名稱 "Apache, HTTP Server" 有相關性。
+警訊名稱：Apache HTTP Server 多個安全漏洞 (CVE-2024-XXXX)
+
+請儘速確認並評估影響範圍。
+
+此郵件由系統自動轉寄。
+
+---------- Forwarded message ---------
+From: [原始寄件者]
+Date: [原始日期]
+Subject: [原始主旨]
+
+[完整原始郵件內容]
+警訊名稱：Apache HTTP Server 多個安全漏洞
+影響平台：Apache HTTP Server 2.4.x
+影響等級：高
+...（完整原始郵件內容）`
+        },
+        notInUse: {
+          title: '📧 未使用寄信通知 - 郵件範例',
+          meta: `
+            <p><strong>觸發時機：</strong>無命中資產（自動掃描）或手動標記「未使用」</p>
+            <p><strong>收件者：</strong>原寄件者（回覆原始郵件）</p>
+            <p><strong>寄信方式：</strong>回覆 (Reply)</p>
+          `,
+          content: `您好，
+
+已收到漏洞預警通知：
+「Apache HTTP Server 多個安全漏洞 (CVE-2024-XXXX)」
+
+經確認，無相關軟硬體資產，無需處理。
+感謝通知。
+
+此郵件由系統自動發送。`
+        },
+        processed: {
+          title: '📧 已處理寄信通知 - 郵件範例',
+          meta: `
+            <p><strong>觸發時機：</strong>手動標記為「已處理」</p>
+            <p><strong>收件者：</strong>原寄件者（回覆原始郵件）</p>
+            <p><strong>寄信方式：</strong>回覆 (Reply)</p>
+          `,
+          content: `您好，
+
+關於漏洞預警通知：
+「Apache HTTP Server 多個安全漏洞 (CVE-2024-XXXX)」
+
+經評估確認影響範圍，相關資產「Apache, HTTP Server」已完成必要之風險處置措施。
+
+處理人員：王小明 (user@example.com)
+處理時間：2026-01-30 14:30:00
+
+如有任何問題，請隨時聯繫。
+
+此郵件由系統自動發送。`
+        }
+      };
+
+      function showEmailPreview(type) {
+        const template = emailPreviewTemplates[type];
+        if (!template) return;
+
+        document.getElementById('email-preview-title').textContent = template.title;
+        document.getElementById('email-preview-meta').innerHTML = template.meta;
+        document.getElementById('email-preview-content').textContent = template.content;
+        document.getElementById('email-preview-overlay').classList.add('show');
+      }
+
+      function closeEmailPreview() {
+        document.getElementById('email-preview-overlay').classList.remove('show');
+      }
+
+      // 點擊遮罩關閉郵件預覽
+      document.getElementById('email-preview-overlay').addEventListener('click', function(e) {
+        if (e.target === this) {
+          closeEmailPreview();
         }
       });
     </script>
