@@ -18,13 +18,14 @@ function doGet() {
 function getSystemSettings() {
   ensureSettingsSheetExists();
   const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.SETTINGS_SHEET_NAME);
-  const values = sheet.getRange("A2:H2").getDisplayValues()[0];
+  const values = sheet.getRange("A2:I2").getDisplayValues()[0];
   return {
     scanRead: values[0] === "是",
     autoDraft: values[1] === "是",
     chatNotify: values[2] === "是",
-    notInUseSendEmail: values[6] === "是",      // G2: 未使用寄信通知
-    processedSendEmail: values[7] === "是"      // H2: 已處理寄信通知
+    notInUseSendEmail: values[6] === "是",      // G2: 未使用寄信通知（無命中資產時）
+    processedSendEmail: values[7] === "是",     // H2: 已處理寄信通知
+    assetHitNotify: values[8] === "是"          // I2: 命中資產通知 Person A
   };
 }
 
@@ -35,8 +36,9 @@ function updateSystemSetting(key, isEnabled) {
   if (key === 'scanRead') sheet.getRange("A2").setValue(val);
   if (key === 'autoDraft') sheet.getRange("B2").setValue(val);
   if (key === 'chatNotify') sheet.getRange("C2").setValue(val);
-  if (key === 'notInUseSendEmail') sheet.getRange("G2").setValue(val);   // G2: 未使用寄信通知
+  if (key === 'notInUseSendEmail') sheet.getRange("G2").setValue(val);   // G2: 未使用寄信通知（無命中資產時）
   if (key === 'processedSendEmail') sheet.getRange("H2").setValue(val);  // H2: 已處理寄信通知
+  if (key === 'assetHitNotify') sheet.getRange("I2").setValue(val);      // I2: 命中資產通知 Person A
   
   return { success: true };
 }
@@ -361,38 +363,40 @@ function processSingleMessage(message, assetList, settings) {
     .map(lowerAsset => matchedAssets.find(a => a.toLowerCase() === lowerAsset));
 
   if (uniqueAssets.length > 0) {
-    // [修改] 將所有命中資產合併為字串
+    // ===== 有命中資產：通知 Person A（由 assetHitNotify 控制）=====
     const matchedAssetStr = uniqueAssets.join(', ');
     
     let actionLog = '僅紀錄';
     
-    // 優先判斷 notInUseSendEmail（直接寄信）
-    if (settings.notInUseSendEmail) {
+    // 判斷 assetHitNotify（命中資產通知 Person A）
+    if (settings.assetHitNotify) {
+      // 直接寄信給 Person A
       sendEmailForPersonA(warningName, matchedAssetStr, message, settings);
       actionLog = '已直接寄信給 Person A';
     } else if (settings.autoDraft) {
-      // 其次判斷 autoDraft（建立草稿）
+      // 建立草稿給 Person A（但不自動寄出）
       createDraftForPersonA(warningName, matchedAssetStr, message, settings);
       actionLog = '已建立通知草稿';
     } else if (settings.chatNotify) {
-       sendToChat(`🚨 **[資產命中] (草稿功能未啟用)**\n偵測資產：${matchedAssetStr}\n警訊資訊：${warningName}`);
+      sendToChat(`🚨 **[資產命中] (通知功能未啟用)**\n偵測資產：${matchedAssetStr}\n警訊資訊：${warningName}`);
     }
-    // [修改] 不自動存入郵件內容，改為用戶點擊時才載入
-    logExecutionResult('ALERT', warningName, matchedAssetStr, actionLog, msgId, emailDate, hasReply, notInUse, '');
+    // 記錄結果（有命中資產 = 有使用，不標記「未使用」）
+    logExecutionResult('ALERT', warningName, matchedAssetStr, actionLog, msgId, emailDate, hasReply, '', '');
   } else {
-    // 無命中資產：直接標記為 SAFE 和 未使用
+    // ===== 無命中資產 = 未使用此資產：由 notInUseSendEmail 控制 =====
     let actionLog = '僅紀錄';
     
-    // 優先判斷 notInUseSendEmail（直接寄信回覆）
+    // 判斷 notInUseSendEmail（未使用寄信通知）
     if (settings.notInUseSendEmail) {
+      // 直接寄信回覆寄件者
       sendEmailReplyToSenderB(warningName, message, settings);
-      actionLog = '已直接寄信回覆';
+      actionLog = '已直接寄信回覆 (未使用)';
     } else if (settings.autoDraft) {
-      // 其次判斷 autoDraft（建立回覆草稿）
+      // 建立回覆草稿
       createDraftReplyToSenderB(warningName, message, settings);
       actionLog = '已建立回覆草稿';
     }
-    // [修改] 不自動存入郵件內容，改為用戶點擊時才載入
+    // 記錄結果（無命中資產 = 未使用）
     logExecutionResult('SAFE', warningName, '無相關資產', actionLog, msgId, emailDate, hasReply, '未使用', '');
   }
 }
@@ -505,8 +509,8 @@ function ensureSettingsSheetExists() {
   let settingSheet = ss.getSheetByName(CONFIG.SETTINGS_SHEET_NAME);
   if (!settingSheet) {
     settingSheet = ss.insertSheet(CONFIG.SETTINGS_SHEET_NAME);
-    settingSheet.appendRow(['掃描已讀信件 (A2)', '開啟自動草稿 (B2)', '開啟Chat通知 (C2)', '授權使用者 (D欄)', '使用者姓名 (E欄)', '保留欄位 (F欄)', '未使用寄信通知 (G2)', '已處理寄信通知 (H2)']);
-    settingSheet.appendRow(['否', '是', '是', '', '', '', '否', '否']);
+    settingSheet.appendRow(['掃描已讀信件 (A2)', '開啟自動草稿 (B2)', '開啟Chat通知 (C2)', '授權使用者 (D欄)', '使用者姓名 (E欄)', '保留欄位 (F欄)', '未使用寄信通知 (G2)', '已處理寄信通知 (H2)', '命中資產通知 (I2)']);
+    settingSheet.appendRow(['否', '是', '是', '', '', '', '否', '否', '是']);
   }
 }
 
@@ -989,14 +993,16 @@ function testEmailPreview() {
   console.log(`   - 掃描已讀信件: ${settings.scanRead ? '是' : '否'}`);
   console.log(`   - 自動草稿: ${settings.autoDraft ? '是' : '否'}`);
   console.log(`   - Chat 通知: ${settings.chatNotify ? '是' : '否'}`);
-  console.log(`   - 未使用寄信通知: ${settings.notInUseSendEmail ? '是' : '否'}`);
-  console.log(`   - 已處理寄信通知: ${settings.processedSendEmail ? '是' : '否'}`);
+  console.log(`   - 命中資產通知 (I2): ${settings.assetHitNotify ? '是' : '否'}`);
+  console.log(`   - 未使用寄信通知 (G2): ${settings.notInUseSendEmail ? '是' : '否'}`);
+  console.log(`   - 已處理寄信通知 (H2): ${settings.processedSendEmail ? '是' : '否'}`);
   console.log('');
   
   // ====== 情境 1: 資產命中 - 寄信給 Person A ======
   console.log('-'.repeat(60));
   console.log('📬 情境 1: 資產命中 - 通知 Person A');
   console.log('-'.repeat(60));
+  console.log(`觸發條件: assetHitNotify=${settings.assetHitNotify ? '是' : '否'} (命中資產時通知 Person A)`);
   console.log(`收件者: ${CONFIG.PERSON_A_EMAIL}`);
   console.log(`主旨: [資產風險警示] 發現內部資產 ${testData.matchedAsset} 相關漏洞`);
   console.log('');
@@ -1016,10 +1022,11 @@ ${testData.originalEmailBody.substring(0, 300)}...
   console.log('---');
   console.log('');
   
-  // ====== 情境 2: 無相關資產 - 回覆寄件者 ======
+  // ====== 情境 2: 無相關資產 (未使用) - 回覆寄件者 ======
   console.log('-'.repeat(60));
-  console.log('📬 情境 2: 無相關資產 - 回覆原寄件者');
+  console.log('📬 情境 2: 無相關資產 (未使用) - 回覆原寄件者');
   console.log('-'.repeat(60));
+  console.log(`觸發條件: notInUseSendEmail=${settings.notInUseSendEmail ? '是' : '否'} (無命中資產時自動回覆)`);
   console.log(`收件者: ${CONFIG.SENDER_B_EMAILS[0]} (回覆原始郵件)`);
   console.log('');
   console.log('郵件內容:');
@@ -1090,7 +1097,7 @@ ${testData.originalEmailBody.substring(0, 300)}...
   console.log('='.repeat(60));
   console.log('');
   console.log('【自動掃描時】');
-  console.log(`  資產命中 → ${settings.notInUseSendEmail ? '直接寄信給 Person A' : (settings.autoDraft ? '建立草稿' : '僅紀錄')}`);
+  console.log(`  資產命中 → ${settings.assetHitNotify ? '直接寄信給 Person A' : (settings.autoDraft ? '建立草稿' : '僅紀錄')}`);
   console.log(`  無命中   → ${settings.notInUseSendEmail ? '直接寄信回覆' : (settings.autoDraft ? '建立回覆草稿' : '僅紀錄')}`);
   console.log('');
   console.log('【手動操作時】');
@@ -1158,6 +1165,9 @@ function testShowCurrentSettings() {
   console.log(`  掃描已讀信件 (A2): ${settings.scanRead ? '✅ 是' : '❌ 否'}`);
   console.log(`  自動草稿 (B2): ${settings.autoDraft ? '✅ 是' : '❌ 否'}`);
   console.log(`  Chat 通知 (C2): ${settings.chatNotify ? '✅ 是' : '❌ 否'}`);
+  console.log('');
+  console.log('【命中資產通知設定】');
+  console.log(`  命中資產通知 Person A (I2): ${settings.assetHitNotify ? '✅ 是' : '❌ 否'}`);
   console.log('');
   console.log('【自動寄信設定】');
   console.log(`  未使用寄信通知 (G2): ${settings.notInUseSendEmail ? '✅ 是' : '❌ 否'}`);

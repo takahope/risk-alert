@@ -1693,7 +1693,25 @@
             </div>
           </div>
 
-          <!-- 自動寄信設定 -->
+          <!-- 命中資產通知設定 -->
+          <div class="settings-section">
+            <div class="settings-section-title">🎯 命中資產通知資訊組</div>
+            <div class="settings-row">
+              <div class="settings-info">
+                <div class="settings-label">
+                  命中資產通知 Person A
+                  <span class="status-badge on" id="badge-assetHitNotify">已啟用</span>
+                </div>
+                <div class="settings-description">開啟後，掃描到有命中資產時會<strong>直接發送郵件</strong>通知 Person A</div>
+              </div>
+              <label class="settings-switch">
+                <input type="checkbox" id="setting-assetHitNotify" onchange="updateSettingValue('assetHitNotify')">
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- 自動寄信設定（未使用/已處理） -->
           <div class="settings-section">
             <div class="settings-section-title">🚀 自動寄信設定（謹慎使用）</div>
             <div class="settings-row">
@@ -1702,7 +1720,7 @@
                   未使用寄信通知
                   <span class="status-badge off" id="badge-notInUseSendEmail">已關閉</span>
                 </div>
-                <div class="settings-description">開啟後，標記為「未使用」時會<strong>直接發送郵件</strong>回覆寄件者</div>
+                <div class="settings-description">開啟後，<strong>無命中資產</strong>或手動標記為「未使用」時會直接發送郵件回覆寄件者</div>
               </div>
               <label class="settings-switch">
                 <input type="checkbox" id="setting-notInUseSendEmail" onchange="updateSettingValue('notInUseSendEmail')">
@@ -2654,9 +2672,11 @@
           document.getElementById('setting-chatNotify').checked = settings.chatNotify;
           document.getElementById('setting-notInUseSendEmail').checked = settings.notInUseSendEmail;
           document.getElementById('setting-processedSendEmail').checked = settings.processedSendEmail;
+          document.getElementById('setting-assetHitNotify').checked = settings.assetHitNotify;
           
           updateSettingBadge('notInUseSendEmail', settings.notInUseSendEmail);
           updateSettingBadge('processedSendEmail', settings.processedSendEmail);
+          updateSettingBadge('assetHitNotify', settings.assetHitNotify);
         }).withFailureHandler(function(error) {
           showSettingsToast('載入設定失敗: ' + error.message);
         }).getSystemSettings();
@@ -2668,7 +2688,7 @@
         
         google.script.run.withSuccessHandler(function() {
           showSettingsToast('設定已更新');
-          if (key === 'notInUseSendEmail' || key === 'processedSendEmail') {
+          if (key === 'notInUseSendEmail' || key === 'processedSendEmail' || key === 'assetHitNotify') {
             updateSettingBadge(key, isEnabled);
           }
         }).withFailureHandler(function(error) {
