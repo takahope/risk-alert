@@ -370,13 +370,13 @@ function processSingleMessage(message, assetList, settings) {
     
     // 判斷 assetHitNotify（命中資產通知 Person A）
     if (settings.assetHitNotify) {
-      // 直接寄信給 Person A
+      // 轉寄給 Person A
       sendEmailForPersonA(warningName, matchedAssetStr, message, settings);
-      actionLog = '已直接寄信給 Person A';
+      actionLog = '已轉寄給 Person A';
     } else if (settings.autoDraft) {
-      // 建立草稿給 Person A（但不自動寄出）
+      // 建立轉寄草稿給 Person A（但不自動寄出）
       createDraftForPersonA(warningName, matchedAssetStr, message, settings);
-      actionLog = '已建立通知草稿';
+      actionLog = '已建立轉寄草稿';
     } else if (settings.chatNotify) {
       sendToChat(`🚨 **[資產命中] (通知功能未啟用)**\n偵測資產：${matchedAssetStr}\n警訊資訊：${warningName}`);
     }
@@ -644,24 +644,31 @@ function logExecutionResult(status, warningName, asset, action, msgId, emailDate
 // ==========================================
 
 function createDraftForPersonA(warningName, matchedAsset, originalMessage, settings) {
-  const subject = `[資產風險警示] 發現內部資產 ${matchedAsset} 相關漏洞`;
-  // [修復] 恢復完整的信件內容
-  const body = `
-    親愛的 A：
-    
-    系統檢測到最新的漏洞預警通報內容與資訊資產名稱 "${matchedAsset}" 有相關性。
-    警訊名稱：${warningName}
-    
-    請儘速確認並評估影響範圍。
-    
-    原始信件內容摘要：
-    ${originalMessage.getPlainBody().substring(0, 300)}...
-  `;
+  // 使用轉寄格式，讓 Person A 看到完整原始信件
+  const originalSubject = originalMessage.getSubject();
+  const subject = `Fwd: ${originalSubject}`;
   
-  GmailApp.createDraft(CONFIG.PERSON_A_EMAIL, subject, body);
+  // 組合轉寄郵件內容
+  const forwardBody = `
+親愛的 A：
+
+系統檢測到最新的漏洞預警通報內容與資訊資產名稱 "${matchedAsset}" 有相關性。
+警訊名稱：${warningName}
+
+請儘速確認並評估影響範圍。
+
+---------- Forwarded message ---------
+From: ${originalMessage.getFrom()}
+Date: ${originalMessage.getDate()}
+Subject: ${originalSubject}
+
+${originalMessage.getPlainBody()}
+  `.trim();
+  
+  GmailApp.createDraft(CONFIG.PERSON_A_EMAIL, subject, forwardBody);
   
   if (settings.chatNotify) {
-    sendToChat(`🚨 **[資產命中] 已建立通知草稿**\n偵測資產：${matchedAsset}\n警訊名稱：${warningName}`);
+    sendToChat(`🚨 **[資產命中] 已建立轉寄草稿**\n偵測資產：${matchedAsset}\n警訊名稱：${warningName}`);
   }
 }
 
@@ -689,7 +696,7 @@ function createDraftReplyToSenderB(warningName, originalMessage, settings) {
 // ==========================================
 
 /**
- * 直接寄信給 Person A（資產命中時）
+ * 轉寄郵件給 Person A（資產命中時）
  * @param {string} warningName - 警訊名稱
  * @param {string} matchedAsset - 命中資產
  * @param {GmailMessage} originalMessage - 原始郵件
@@ -697,8 +704,8 @@ function createDraftReplyToSenderB(warningName, originalMessage, settings) {
  */
 function sendEmailForPersonA(warningName, matchedAsset, originalMessage, settings) {
   try {
-    const subject = `[資產風險警示] 發現內部資產 ${matchedAsset} 相關漏洞`;
-    const body = `
+    // 使用 forward() 直接轉寄原始郵件，並附加前言說明
+    const forwardNote = `
 親愛的 A：
 
 系統檢測到最新的漏洞預警通報內容與資訊資產名稱 "${matchedAsset}" 有相關性。
@@ -706,21 +713,21 @@ function sendEmailForPersonA(warningName, matchedAsset, originalMessage, setting
 
 請儘速確認並評估影響範圍。
 
-原始信件內容摘要：
-${originalMessage.getPlainBody().substring(0, 300)}...
-
-此郵件由系統自動發送。
+此郵件由系統自動轉寄。
     `.trim();
     
-    GmailApp.sendEmail(CONFIG.PERSON_A_EMAIL, subject, body);
+    // 使用 GmailMessage.forward() 轉寄原始郵件
+    originalMessage.forward(CONFIG.PERSON_A_EMAIL, {
+      body: forwardNote
+    });
     
     if (settings.chatNotify) {
-      sendToChat(`📧 **[資產命中] 已直接寄信給 Person A**\n偵測資產：${matchedAsset}\n警訊名稱：${warningName}`);
+      sendToChat(`📧 **[資產命中] 已轉寄給 Person A**\n偵測資產：${matchedAsset}\n警訊名稱：${warningName}`);
     }
     
     return true;
   } catch (e) {
-    console.error('寄信給 Person A 失敗: ' + e.message);
+    console.error('轉寄給 Person A 失敗: ' + e.message);
     return false;
   }
 }
@@ -998,15 +1005,16 @@ function testEmailPreview() {
   console.log(`   - 已處理寄信通知 (H2): ${settings.processedSendEmail ? '是' : '否'}`);
   console.log('');
   
-  // ====== 情境 1: 資產命中 - 寄信給 Person A ======
+  // ====== 情境 1: 資產命中 - 轉寄給 Person A ======
   console.log('-'.repeat(60));
-  console.log('📬 情境 1: 資產命中 - 通知 Person A');
+  console.log('📬 情境 1: 資產命中 - 轉寄給 Person A');
   console.log('-'.repeat(60));
-  console.log(`觸發條件: assetHitNotify=${settings.assetHitNotify ? '是' : '否'} (命中資產時通知 Person A)`);
+  console.log(`觸發條件: assetHitNotify=${settings.assetHitNotify ? '是' : '否'} (命中資產時轉寄給 Person A)`);
   console.log(`收件者: ${CONFIG.PERSON_A_EMAIL}`);
-  console.log(`主旨: [資產風險警示] 發現內部資產 ${testData.matchedAsset} 相關漏洞`);
+  console.log(`方式: 轉寄原始郵件 (Forward)，Person A 可看到完整原始信件內容`);
+  console.log(`主旨: Fwd: [原始郵件主旨]`);
   console.log('');
-  console.log('郵件內容:');
+  console.log('郵件內容 (轉寄前言 + 原始郵件):');
   console.log('---');
   console.log(`親愛的 A：
 
@@ -1015,10 +1023,15 @@ function testEmailPreview() {
 
 請儘速確認並評估影響範圍。
 
-原始信件內容摘要：
-${testData.originalEmailBody.substring(0, 300)}...
+此郵件由系統自動轉寄。
 
-此郵件由系統自動發送。`);
+---------- Forwarded message ---------
+From: [原始寄件者]
+Date: [原始日期]
+Subject: [原始主旨]
+
+${testData.originalEmailBody}
+...（完整原始郵件內容）`);
   console.log('---');
   console.log('');
   
@@ -1097,8 +1110,8 @@ ${testData.originalEmailBody.substring(0, 300)}...
   console.log('='.repeat(60));
   console.log('');
   console.log('【自動掃描時】');
-  console.log(`  資產命中 → ${settings.assetHitNotify ? '直接寄信給 Person A' : (settings.autoDraft ? '建立草稿' : '僅紀錄')}`);
-  console.log(`  無命中   → ${settings.notInUseSendEmail ? '直接寄信回覆' : (settings.autoDraft ? '建立回覆草稿' : '僅紀錄')}`);
+  console.log(`  資產命中 → ${settings.assetHitNotify ? '轉寄給 Person A (含完整原始信件)' : (settings.autoDraft ? '建立轉寄草稿' : '僅紀錄')}`);
+  console.log(`  無命中   → ${settings.notInUseSendEmail ? '直接回覆寄件者' : (settings.autoDraft ? '建立回覆草稿' : '僅紀錄')}`);
   console.log('');
   console.log('【手動操作時】');
   console.log(`  點選「未使用」→ ${settings.notInUseSendEmail ? '直接寄信回覆' : (settings.autoDraft ? '建立草稿' : '僅更新狀態')}`);
