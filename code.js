@@ -309,7 +309,8 @@ function processSingleMessage(message, assetList, settings) {
   
   if (!warningName) {
     const errorMsg = `無法提取警訊名稱或漏洞說明`;
-    logExecutionResult('ERROR', '解析失敗', 'N/A', errorMsg, msgId, emailDate, hasReply, notInUse, body.substring(0, 10000));
+    // [修改] 不自動存入郵件內容，改為用戶點擊時才載入
+    logExecutionResult('ERROR', '解析失敗', 'N/A', errorMsg, msgId, emailDate, hasReply, notInUse, '');
     if (settings.chatNotify) sendToChat(`⚠️ 錯誤報告：${errorMsg}`);
     return; 
   }
@@ -342,7 +343,8 @@ function processSingleMessage(message, assetList, settings) {
     } else if (settings.chatNotify) {
        sendToChat(`🚨 **[資產命中] (草稿功能未啟用)**\n偵測資產：${matchedAssetStr}\n警訊資訊：${warningName}`);
     }
-    logExecutionResult('ALERT', warningName, matchedAssetStr, actionLog, msgId, emailDate, hasReply, notInUse, body.substring(0, 10000));
+    // [修改] 不自動存入郵件內容，改為用戶點擊時才載入
+    logExecutionResult('ALERT', warningName, matchedAssetStr, actionLog, msgId, emailDate, hasReply, notInUse, '');
   } else {
     // 無命中資產：直接標記為 SAFE 和 未使用
     let actionLog = '僅紀錄 (自動草稿已關閉)';
@@ -350,7 +352,8 @@ function processSingleMessage(message, assetList, settings) {
       createDraftReplyToSenderB(warningName, message, settings);
       actionLog = '已建立回覆草稿';
     }
-    logExecutionResult('SAFE', warningName, '無相關資產', actionLog, msgId, emailDate, hasReply, '未使用', body.substring(0, 10000));
+    // [修改] 不自動存入郵件內容，改為用戶點擊時才載入
+    logExecutionResult('SAFE', warningName, '無相關資產', actionLog, msgId, emailDate, hasReply, '未使用', '');
   }
 }
 
