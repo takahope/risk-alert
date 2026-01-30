@@ -307,6 +307,22 @@ function processSingleMessage(message, assetList, settings) {
     }
   }
   
+  // [新增] 特殊處理：如果包含「DN 與 IP 黑名單」關鍵字，直接使用固定值
+  if (warningInfo.isBlacklistAlert && !warningName) {
+    let actionLog = '僅紀錄 (自動草稿已關閉)';
+    if (settings.autoDraft) {
+      // 建立通知草稿給 Person A
+      const fixedWarningName = 'DN 與 IP 黑名單更新';
+      const fixedAsset = 'DN 與 IP 黑名單';
+      createDraftForPersonA(fixedWarningName, fixedAsset, message, settings);
+      actionLog = '已建立通知草稿';
+    } else if (settings.chatNotify) {
+      sendToChat(`🚨 **[DN 與 IP 黑名單更新]**\n已偵測到黑名單更新通知`);
+    }
+    logExecutionResult('ALERT', 'DN 與 IP 黑名單更新', 'DN 與 IP 黑名單', actionLog, msgId, emailDate, hasReply, notInUse, '');
+    return;
+  }
+  
   if (!warningName) {
     const errorMsg = `無法提取警訊名稱或漏洞說明`;
     // [修改] 不自動存入郵件內容，改為用戶點擊時才載入
@@ -319,14 +335,6 @@ function processSingleMessage(message, assetList, settings) {
   let matchedAssets = assetList.filter(asset => 
     matchFields.some(field => field.toLowerCase().includes(asset.toLowerCase()))
   );
-  
-  // [新增] 若主要欄位未匹配到任何資產，則使用「DN 與 IP 黑名單」作為備用匹配
-  const fallbackMatchFields = warningInfo.fallbackMatchFields || [];
-  if (matchedAssets.length === 0 && fallbackMatchFields.length > 0) {
-    matchedAssets = assetList.filter(asset => 
-      fallbackMatchFields.some(field => field.toLowerCase().includes(asset.toLowerCase()))
-    );
-  }
   
   // [新增] 去除重複的資產（不區分大小寫）
   const uniqueAssets = [...new Set(matchedAssets.map(a => a.toLowerCase()))]
@@ -372,36 +380,32 @@ function extractWarningInfo(text) {
   const platformRegex = /影響平台[：:]\s*(.+)/i;
   // [新增] 影響等級
   const levelRegex = /影響等級[：:]\s*(.+)/i;
-  // [新增] DN 與 IP 黑名單 (作為最後備用匹配)
-  const blacklistRegex = /DN\s*與\s*IP\s*黑名單[：:]\s*(.+)/i;
   
   const nameMatch = text.match(nameRegex);
   const descMatch = text.match(descRegex);
   const contentMatch = text.match(contentRegex);
   const platformMatch = text.match(platformRegex);
   const levelMatch = text.match(levelRegex);
-  const blacklistMatch = text.match(blacklistRegex);
   
   const name = (nameMatch && nameMatch[1]) ? nameMatch[1].trim() : null;
   const desc = (descMatch && descMatch[1]) ? descMatch[1].trim() : null;
   const content = (contentMatch && contentMatch[1]) ? contentMatch[1].trim() : null;
   const platform = (platformMatch && platformMatch[1]) ? platformMatch[1].trim() : null;
   const level = (levelMatch && levelMatch[1]) ? levelMatch[1].trim() : null;
-  const blacklist = (blacklistMatch && blacklistMatch[1]) ? blacklistMatch[1].trim() : null;
+  
+  // [新增] 檢查是否包含「DN 與 IP 黑名單」關鍵字（不需要冒號格式）
+  const hasBlacklistKeyword = /DN\s*與\s*IP\s*黑名單/i.test(text);
   
   // 組合顯示結果
   let displayName = '';
   
-  // 優先使用警訊名稱，其次是漏洞說明、內容說明，最後是黑名單
+  // 優先使用警訊名稱，其次是漏洞說明、內容說明
   if (name) {
     displayName = name;
   } else if (desc) {
     displayName = desc;
   } else if (content) {
     displayName = content;
-  } else if (blacklist) {
-    // [新增] 當其他欄位都沒有時，使用黑名單作為顯示名稱
-    displayName = `DN 與 IP 黑名單: ${blacklist}`;
   }
   
   // 如果有結果，附加額外資訊
@@ -411,18 +415,17 @@ function extractWarningInfo(text) {
     if (content && !displayName.includes(content)) extras.push(`內容: ${content}`);
     if (platform) extras.push(`平台: ${platform}`);
     if (level) extras.push(`等級: ${level}`);
-    if (blacklist) extras.push(`黑名單: ${blacklist}`);
     
     if (extras.length > 0) {
       displayName += ` (${extras.join(' | ')})`;
     }
   }
   
-  // 返回物件：包含顯示名稱、主要匹配欄位和備用匹配欄位
+  // 返回物件：包含顯示名稱、主要匹配欄位和是否為黑名單警示
   return {
     displayName: displayName || null,
     matchFields: [name, desc, content, platform, level].filter(Boolean),
-    fallbackMatchFields: blacklist ? [blacklist] : []  // DN 與 IP 黑名單作為備用匹配
+    isBlacklistAlert: hasBlacklistKeyword  // [新增] 標記是否包含黑名單關鍵字
   };
 }
 
