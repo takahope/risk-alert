@@ -172,6 +172,264 @@
         transform: translateX(20px);
       }
 
+      /* ==========================================
+         設定彈出視窗 Modal 樣式
+         ========================================== */
+      .settings-modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 2000;
+        padding: 20px;
+        overflow-y: auto;
+      }
+
+      .settings-modal-overlay.show {
+        display: flex;
+      }
+
+      .settings-modal {
+        background: #fff;
+        border-radius: 16px;
+        max-width: 600px;
+        width: 100%;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 24px 38px 3px rgba(0,0,0,0.14), 0 9px 46px 8px rgba(0,0,0,0.12);
+        animation: modalSlideIn 0.3s ease;
+      }
+
+      @keyframes modalSlideIn {
+        from {
+          opacity: 0;
+          transform: translateY(-20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .settings-modal-header {
+        background: linear-gradient(135deg, #1a73e8, #4285f4);
+        color: white;
+        padding: 20px 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-radius: 16px 16px 0 0;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+      }
+
+      .settings-modal-header h2 {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 600;
+      }
+
+      .settings-modal-close {
+        background: rgba(255,255,255,0.2);
+        border: none;
+        color: white;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.2s;
+      }
+
+      .settings-modal-close:hover {
+        background: rgba(255,255,255,0.3);
+      }
+
+      .settings-modal-body {
+        padding: 24px;
+      }
+
+      .settings-warning {
+        background-color: #fff3cd;
+        border: 1px solid #ffc107;
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        font-size: 13px;
+        color: #856404;
+      }
+
+      .settings-section {
+        margin-bottom: 24px;
+      }
+
+      .settings-section:last-child {
+        margin-bottom: 0;
+      }
+
+      .settings-section-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: #1a73e8;
+        margin-bottom: 12px;
+        padding-bottom: 8px;
+        border-bottom: 2px solid #e8f0fe;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .settings-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 14px 0;
+        border-bottom: 1px solid #f1f3f4;
+      }
+
+      .settings-row:last-child {
+        border-bottom: none;
+      }
+
+      .settings-info {
+        flex: 1;
+        padding-right: 16px;
+      }
+
+      .settings-label {
+        font-size: 14px;
+        font-weight: 500;
+        color: #202124;
+        margin-bottom: 4px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .settings-description {
+        font-size: 12px;
+        color: #5f6368;
+        line-height: 1.4;
+      }
+
+      .settings-switch {
+        position: relative;
+        display: inline-block;
+        width: 48px;
+        height: 24px;
+        flex-shrink: 0;
+      }
+
+      .settings-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+
+      .settings-switch .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #ccc;
+        transition: .3s;
+        border-radius: 24px;
+      }
+
+      .settings-switch .slider:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: .3s;
+        border-radius: 50%;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      }
+
+      .settings-switch input:checked + .slider {
+        background-color: #188038;
+      }
+
+      .settings-switch input:checked + .slider:before {
+        transform: translateX(24px);
+      }
+
+      .status-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 500;
+      }
+
+      .status-badge.on {
+        background-color: #e6f4ea;
+        color: #188038;
+      }
+
+      .status-badge.off {
+        background-color: #fce8e6;
+        color: #d93025;
+      }
+
+      .settings-toast {
+        position: fixed;
+        bottom: 30px;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: #323232;
+        color: white;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-size: 14px;
+        z-index: 3000;
+        opacity: 0;
+        transition: opacity 0.3s;
+        pointer-events: none;
+      }
+
+      .settings-toast.show {
+        opacity: 1;
+      }
+
+      @media (max-width: 600px) {
+        .settings-modal {
+          margin: 10px;
+          max-height: 95vh;
+        }
+        
+        .settings-row {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 12px;
+        }
+        
+        .settings-switch {
+          align-self: flex-end;
+        }
+        
+        .settings-info {
+          padding-right: 0;
+        }
+      }
+
       /* 統計卡片區塊 */
       .stats-container {
         display: grid;
@@ -1381,6 +1639,97 @@
       </div>
     </div>
 
+    <!-- 設定彈出視窗 Modal -->
+    <div class="settings-modal-overlay" id="settings-modal-overlay">
+      <div class="settings-modal">
+        <div class="settings-modal-header">
+          <h2>⚙️ 系統設定</h2>
+          <button class="settings-modal-close" onclick="closeSettingsModal()">&times;</button>
+        </div>
+        <div class="settings-modal-body">
+          <!-- 警告提示 -->
+          <div class="settings-warning">
+            <span>⚠️</span>
+            <span>請謹慎修改設定，變更將立即生效。開啟「寄信通知」功能會自動發送郵件。</span>
+          </div>
+
+          <!-- 郵件掃描設定 -->
+          <div class="settings-section">
+            <div class="settings-section-title">📧 郵件掃描設定</div>
+            <div class="settings-row">
+              <div class="settings-info">
+                <div class="settings-label">掃描已讀信件</div>
+                <div class="settings-description">開啟後會掃描所有信件（包含已讀），關閉則只掃描未讀信件</div>
+              </div>
+              <label class="settings-switch">
+                <input type="checkbox" id="setting-scanRead" onchange="updateSettingValue('scanRead')">
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- 草稿與通知設定 -->
+          <div class="settings-section">
+            <div class="settings-section-title">📝 草稿與通知設定</div>
+            <div class="settings-row">
+              <div class="settings-info">
+                <div class="settings-label">開啟自動草稿</div>
+                <div class="settings-description">掃描到郵件時自動建立回覆草稿，需手動檢視後再發送</div>
+              </div>
+              <label class="settings-switch">
+                <input type="checkbox" id="setting-autoDraft" onchange="updateSettingValue('autoDraft')">
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="settings-row">
+              <div class="settings-info">
+                <div class="settings-label">開啟 Chat 通知</div>
+                <div class="settings-description">處理郵件後發送 Google Chat 通知</div>
+              </div>
+              <label class="settings-switch">
+                <input type="checkbox" id="setting-chatNotify" onchange="updateSettingValue('chatNotify')">
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- 自動寄信設定 -->
+          <div class="settings-section">
+            <div class="settings-section-title">🚀 自動寄信設定（謹慎使用）</div>
+            <div class="settings-row">
+              <div class="settings-info">
+                <div class="settings-label">
+                  未使用寄信通知
+                  <span class="status-badge off" id="badge-notInUseSendEmail">已關閉</span>
+                </div>
+                <div class="settings-description">開啟後，標記為「未使用」時會<strong>直接發送郵件</strong>回覆寄件者</div>
+              </div>
+              <label class="settings-switch">
+                <input type="checkbox" id="setting-notInUseSendEmail" onchange="updateSettingValue('notInUseSendEmail')">
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="settings-row">
+              <div class="settings-info">
+                <div class="settings-label">
+                  已處理寄信通知
+                  <span class="status-badge off" id="badge-processedSendEmail">已關閉</span>
+                </div>
+                <div class="settings-description">開啟後，標記為「已處理」時會<strong>直接發送郵件</strong>回覆寄件者</div>
+              </div>
+              <label class="settings-switch">
+                <input type="checkbox" id="setting-processedSendEmail" onchange="updateSettingValue('processedSendEmail')">
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 設定 Toast 通知 -->
+    <div class="settings-toast" id="settings-toast"></div>
+
     <!-- 載入中遮罩 -->
     <div id="loading-overlay" class="loading-overlay">
       <div class="loading-content">
@@ -1417,9 +1766,9 @@
           <button id="btn-scan" class="btn btn-primary" onclick="triggerScan()">
             🚀 立即掃描信件
           </button>
-          <a href="?page=settings" class="btn btn-outline" style="text-decoration: none;">
+          <button class="btn btn-outline" onclick="openSettingsModal()">
             ⚙️ 系統設定
-          </a>
+          </button>
         </div>
       </div>
 
@@ -2283,6 +2632,81 @@
           })
           .processIncomingEmails();
       }
+
+      // ==========================================
+      // 設定彈出視窗相關
+      // ==========================================
+      function openSettingsModal() {
+        document.getElementById('settings-modal-overlay').classList.add('show');
+        document.body.style.overflow = 'hidden';
+        loadSettingsModal();
+      }
+
+      function closeSettingsModal() {
+        document.getElementById('settings-modal-overlay').classList.remove('show');
+        document.body.style.overflow = '';
+      }
+
+      function loadSettingsModal() {
+        google.script.run.withSuccessHandler(function(settings) {
+          document.getElementById('setting-scanRead').checked = settings.scanRead;
+          document.getElementById('setting-autoDraft').checked = settings.autoDraft;
+          document.getElementById('setting-chatNotify').checked = settings.chatNotify;
+          document.getElementById('setting-notInUseSendEmail').checked = settings.notInUseSendEmail;
+          document.getElementById('setting-processedSendEmail').checked = settings.processedSendEmail;
+          
+          updateSettingBadge('notInUseSendEmail', settings.notInUseSendEmail);
+          updateSettingBadge('processedSendEmail', settings.processedSendEmail);
+        }).withFailureHandler(function(error) {
+          showSettingsToast('載入設定失敗: ' + error.message);
+        }).getSystemSettings();
+      }
+
+      function updateSettingValue(key) {
+        const checkbox = document.getElementById('setting-' + key);
+        const isEnabled = checkbox.checked;
+        
+        google.script.run.withSuccessHandler(function() {
+          showSettingsToast('設定已更新');
+          if (key === 'notInUseSendEmail' || key === 'processedSendEmail') {
+            updateSettingBadge(key, isEnabled);
+          }
+        }).withFailureHandler(function(error) {
+          showSettingsToast('更新失敗: ' + error.message);
+          checkbox.checked = !isEnabled;
+        }).updateSystemSetting(key, isEnabled);
+      }
+
+      function updateSettingBadge(key, isEnabled) {
+        const badge = document.getElementById('badge-' + key);
+        if (badge) {
+          badge.textContent = isEnabled ? '已開啟' : '已關閉';
+          badge.className = 'status-badge ' + (isEnabled ? 'on' : 'off');
+        }
+      }
+
+      function showSettingsToast(message) {
+        const toast = document.getElementById('settings-toast');
+        toast.textContent = message;
+        toast.classList.add('show');
+        setTimeout(() => {
+          toast.classList.remove('show');
+        }, 2500);
+      }
+
+      // 點擊遮罩關閉
+      document.addEventListener('click', function(e) {
+        if (e.target.id === 'settings-modal-overlay') {
+          closeSettingsModal();
+        }
+      });
+
+      // ESC 鍵關閉
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+          closeSettingsModal();
+        }
+      });
     </script>
   </body>
 </html>

@@ -8,18 +8,7 @@
 // 2. 網頁應用程式與設定 API (Web App & Settings)
 // ==========================================
 
-function doGet(e) {
-  // 支援頁面路由：?page=settings 進入設定頁面
-  const page = e && e.parameter && e.parameter.page;
-  
-  if (page === 'settings') {
-    return HtmlService.createHtmlOutputFromFile('Settings')
-      .setTitle('系統設定')
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
-      .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
-  }
-  
-  // 預設顯示儀表板
+function doGet() {
   return HtmlService.createHtmlOutputFromFile('Dashboard')
     .setTitle('資安預警即時儀表板')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
