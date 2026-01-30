@@ -1905,13 +1905,21 @@
                 <span class="slider"></span>
               </label>
             </div>
+            <!-- 主要收件人設定 -->
+            <div class="settings-cc-row">
+              <div class="settings-cc-label">👤 主要收件人 (To)</div>
+              <input type="text" class="settings-cc-input" id="setting-assetHitRecipients" 
+                     placeholder="輸入郵件地址，多個以逗號分隔"
+                     onblur="updateAssetHitRecipients()">
+              <div class="settings-cc-hint">命中資產時轉寄郵件的主要收件人</div>
+            </div>
             <!-- CC 副本收件人 -->
             <div class="settings-cc-row">
               <div class="settings-cc-label">📧 CC 副本收件人</div>
               <input type="text" class="settings-cc-input" id="setting-assetHitCc" 
                      placeholder="輸入郵件地址，多個以逗號分隔"
                      onblur="updateCcValue('assetHitCc')">
-              <div class="settings-cc-hint">轉寄給 Person A 時同時副本給其他人</div>
+              <div class="settings-cc-hint">轉寄時同時副本給其他人</div>
             </div>
           </div>
 
@@ -2918,6 +2926,9 @@
           document.getElementById('setting-processedSendEmail').checked = settings.processedSendEmail;
           document.getElementById('setting-assetHitNotify').checked = settings.assetHitNotify;
           
+          // 載入主要收件人設定
+          document.getElementById('setting-assetHitRecipients').value = settings.assetHitRecipients || '';
+          
           // 載入 CC 副本收件人設定
           document.getElementById('setting-assetHitCc').value = settings.assetHitCc || '';
           document.getElementById('setting-notInUseCc').value = settings.notInUseCc || '';
@@ -2960,6 +2971,25 @@
         }).withFailureHandler(function(error) {
           showSettingsToast('CC 更新失敗: ' + error.message);
         }).updateCcSetting(key, ccEmails);
+      }
+
+      /**
+       * 更新命中資產主要收件人設定
+       */
+      function updateAssetHitRecipients() {
+        const input = document.getElementById('setting-assetHitRecipients');
+        const recipients = input.value.trim();
+        
+        if (!recipients) {
+          showSettingsToast('⚠️ 主要收件人不可為空');
+          return;
+        }
+        
+        google.script.run.withSuccessHandler(function() {
+          showSettingsToast('主要收件人已更新');
+        }).withFailureHandler(function(error) {
+          showSettingsToast('更新失敗: ' + error.message);
+        }).updateAssetHitRecipients(recipients);
       }
 
       function updateSettingBadge(key, isEnabled) {

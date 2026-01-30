@@ -18,7 +18,7 @@ function doGet() {
 function getSystemSettings() {
   ensureSettingsSheetExists();
   const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.SETTINGS_SHEET_NAME);
-  const values = sheet.getRange("A2:L2").getDisplayValues()[0];
+  const values = sheet.getRange("A2:M2").getDisplayValues()[0];
   return {
     scanRead: values[0] === "是",
     autoDraft: values[1] === "是",
@@ -28,7 +28,8 @@ function getSystemSettings() {
     assetHitNotify: values[8] === "是",         // I2: 命中資產通知 Person A
     assetHitCc: values[9] || '',                 // J2: 命中資產通知 CC
     notInUseCc: values[10] || '',                // K2: 未使用寄信通知 CC
-    processedCc: values[11] || ''                // L2: 已處理寄信通知 CC
+    processedCc: values[11] || '',               // L2: 已處理寄信通知 CC
+    assetHitRecipients: values[12] || CONFIG.PERSON_A_EMAIL  // M2: 命中資產主要收件人
   };
 }
 
@@ -60,6 +61,18 @@ function updateCcSetting(key, ccEmails) {
   if (key === 'notInUseCc') sheet.getRange("K2").setValue(cleanedEmails);    // K2: 未使用寄信通知 CC
   if (key === 'processedCc') sheet.getRange("L2").setValue(cleanedEmails);   // L2: 已處理寄信通知 CC
   
+  return { success: true };
+}
+
+/**
+ * 更新命中資產主要收件人設定
+ * @param {string} recipients - 主要收件人郵件地址（多個以逗號分隔）
+ * @returns {Object} { success: boolean }
+ */
+function updateAssetHitRecipients(recipients) {
+  const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.SETTINGS_SHEET_NAME);
+  const cleanedRecipients = recipients.trim();
+  sheet.getRange("M2").setValue(cleanedRecipients);  // M2: 命中資產主要收件人
   return { success: true };
 }
 
@@ -529,8 +542,8 @@ function ensureSettingsSheetExists() {
   let settingSheet = ss.getSheetByName(CONFIG.SETTINGS_SHEET_NAME);
   if (!settingSheet) {
     settingSheet = ss.insertSheet(CONFIG.SETTINGS_SHEET_NAME);
-    settingSheet.appendRow(['掃描已讀信件 (A2)', '開啟自動草稿 (B2)', '開啟Chat通知 (C2)', '授權使用者 (D欄)', '使用者姓名 (E欄)', '保留欄位 (F欄)', '未使用寄信通知 (G2)', '已處理寄信通知 (H2)', '命中資產通知 (I2)', '命中資產CC (J2)', '未使用CC (K2)', '已處理CC (L2)']);
-    settingSheet.appendRow(['否', '是', '是', '', '', '', '否', '否', '是', '', '', '']);
+    settingSheet.appendRow(['掃描已讀信件 (A2)', '開啟自動草稿 (B2)', '開啟Chat通知 (C2)', '授權使用者 (D欄)', '使用者姓名 (E欄)', '保留欄位 (F欄)', '未使用寄信通知 (G2)', '已處理寄信通知 (H2)', '命中資產通知 (I2)', '命中資產CC (J2)', '未使用CC (K2)', '已處理CC (L2)', '命中資產主要收件人 (M2)']);
+    settingSheet.appendRow(['否', '是', '是', '', '', '', '否', '否', '是', '', '', '', CONFIG.PERSON_A_EMAIL]);
   }
 }
 
@@ -664,13 +677,16 @@ function logExecutionResult(status, warningName, asset, action, msgId, emailDate
 // ==========================================
 
 function createDraftForPersonA(warningName, matchedAsset, originalMessage, settings) {
-  // 使用轉寄格式，讓 Person A 看到完整原始信件
+  // 使用轉寄格式，讓收件人看到完整原始信件
   const originalSubject = originalMessage.getSubject();
   const subject = `Fwd: ${originalSubject}`;
   
+  // 取得主要收件人（支援多個，以逗號分隔）
+  const recipients = settings.assetHitRecipients || CONFIG.PERSON_A_EMAIL;
+  
   // 組合轉寄郵件內容
   const forwardBody = `
-親愛的 A：
+親愛的同仁：
 
 系統檢測到最新的漏洞預警通報內容與資訊資產名稱 "${matchedAsset}" 有相關性。
 警訊名稱：${warningName}
@@ -685,10 +701,10 @@ Subject: ${originalSubject}
 ${originalMessage.getPlainBody()}
   `.trim();
   
-  GmailApp.createDraft(CONFIG.PERSON_A_EMAIL, subject, forwardBody);
+  GmailApp.createDraft(recipients, subject, forwardBody);
   
   if (settings.chatNotify) {
-    sendToChat(`🚨 **[資產命中] 已建立轉寄草稿**\n偵測資產：${matchedAsset}\n警訊名稱：${warningName}`);
+    sendToChat(`🚨 **[資產命中] 已建立轉寄草稿**\n收件者：${recipients}\n偵測資產：${matchedAsset}\n警訊名稱：${warningName}`);
   }
 }
 
@@ -746,17 +762,20 @@ function sendEmailForPersonA(warningName, matchedAsset, originalMessage, setting
       forwardOptions.cc = settings.assetHitCc.trim();
     }
     
+    // 取得主要收件人（支援多個，以逗號分隔）
+    const recipients = settings.assetHitRecipients || CONFIG.PERSON_A_EMAIL;
+    
     // 使用 GmailMessage.forward() 轉寄原始郵件
-    originalMessage.forward(CONFIG.PERSON_A_EMAIL, forwardOptions);
+    originalMessage.forward(recipients, forwardOptions);
     
     if (settings.chatNotify) {
       const ccInfo = settings.assetHitCc ? `\nCC：${settings.assetHitCc}` : '';
-      sendToChat(`📧 **[資產命中] 已轉寄給 Person A**\n偵測資產：${matchedAsset}\n警訊名稱：${warningName}${ccInfo}`);
+      sendToChat(`📧 **[資產命中] 已轉寄通知**\n收件者：${recipients}\n偵測資產：${matchedAsset}\n警訊名稱：${warningName}${ccInfo}`);
     }
     
     return true;
   } catch (e) {
-    console.error('轉寄給 Person A 失敗: ' + e.message);
+    console.error('轉寄給主要收件人失敗: ' + e.message);
     return false;
   }
 }
