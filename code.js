@@ -18,19 +18,48 @@ function doGet() {
 function getSystemSettings() {
   ensureSettingsSheetExists();
   const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.SETTINGS_SHEET_NAME);
-  const values = sheet.getRange("A2:M2").getDisplayValues()[0];
+  const values = sheet.getRange("A2:I2").getDisplayValues()[0];
+  
+  // 讀取 J, K, L, M 欄的多列資料（從第 2 列開始）
+  const lastRow = Math.max(sheet.getLastRow(), 2);
+  const numRows = lastRow - 1; // 從第 2 列開始的行數
+  
+  // 讀取各欄的所有 email（J, K, L, M 欄 = 第 10, 11, 12, 13 欄）
+  const assetHitCcList = readColumnEmails(sheet, 10, 2, numRows);      // J 欄
+  const notInUseCcList = readColumnEmails(sheet, 11, 2, numRows);      // K 欄
+  const processedCcList = readColumnEmails(sheet, 12, 2, numRows);     // L 欄
+  const assetHitRecipientsList = readColumnEmails(sheet, 13, 2, numRows); // M 欄
+  
   return {
     scanRead: values[0] === "是",
     autoDraft: values[1] === "是",
     chatNotify: values[2] === "是",
     notInUseSendEmail: values[6] === "是",      // G2: 未使用寄信通知（無命中資產時）
     processedSendEmail: values[7] === "是",     // H2: 已處理寄信通知
-    assetHitNotify: values[8] === "是",         // I2: 命中資產通知 Person A
-    assetHitCc: values[9] || '',                 // J2: 命中資產通知 CC
-    notInUseCc: values[10] || '',                // K2: 未使用寄信通知 CC
-    processedCc: values[11] || '',               // L2: 已處理寄信通知 CC
-    assetHitRecipients: values[12] || CONFIG.PERSON_A_EMAIL  // M2: 命中資產主要收件人
+    assetHitNotify: values[8] === "是",         // I2: 命中資產通知
+    assetHitCc: assetHitCcList.join(', '),                              // J 欄: 命中資產通知 CC
+    notInUseCc: notInUseCcList.join(', '),                              // K 欄: 未使用寄信通知 CC
+    processedCc: processedCcList.join(', '),                            // L 欄: 已處理寄信通知 CC
+    assetHitRecipients: assetHitRecipientsList.length > 0 
+      ? assetHitRecipientsList.join(', ') 
+      : CONFIG.PERSON_A_EMAIL                                           // M 欄: 命中資產主要收件人
   };
+}
+
+/**
+ * 讀取指定欄位的所有 email 地址
+ * @param {Sheet} sheet - 工作表
+ * @param {number} column - 欄位編號（1-based）
+ * @param {number} startRow - 起始列（1-based）
+ * @param {number} numRows - 讀取行數
+ * @returns {string[]} email 陣列
+ */
+function readColumnEmails(sheet, column, startRow, numRows) {
+  if (numRows <= 0) return [];
+  const values = sheet.getRange(startRow, column, numRows, 1).getDisplayValues();
+  return values
+    .map(row => row[0].trim())
+    .filter(email => email.length > 0);
 }
 
 function updateSystemSetting(key, isEnabled) {
@@ -42,38 +71,76 @@ function updateSystemSetting(key, isEnabled) {
   if (key === 'chatNotify') sheet.getRange("C2").setValue(val);
   if (key === 'notInUseSendEmail') sheet.getRange("G2").setValue(val);   // G2: 未使用寄信通知（無命中資產時）
   if (key === 'processedSendEmail') sheet.getRange("H2").setValue(val);  // H2: 已處理寄信通知
-  if (key === 'assetHitNotify') sheet.getRange("I2").setValue(val);      // I2: 命中資產通知 Person A
+  if (key === 'assetHitNotify') sheet.getRange("I2").setValue(val);      // I2: 命中資產通知
   
   return { success: true };
 }
 
 /**
- * 更新 CC 副本收件人設定
+ * 更新 CC 副本收件人設定（寫入多列）
  * @param {string} key - 設定項目（assetHitCc, notInUseCc, processedCc）
  * @param {string} ccEmails - CC 郵件地址（多個以逗號分隔）
  * @returns {Object} { success: boolean }
  */
 function updateCcSetting(key, ccEmails) {
   const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.SETTINGS_SHEET_NAME);
-  const cleanedEmails = ccEmails.trim();
   
-  if (key === 'assetHitCc') sheet.getRange("J2").setValue(cleanedEmails);    // J2: 命中資產通知 CC
-  if (key === 'notInUseCc') sheet.getRange("K2").setValue(cleanedEmails);    // K2: 未使用寄信通知 CC
-  if (key === 'processedCc') sheet.getRange("L2").setValue(cleanedEmails);   // L2: 已處理寄信通知 CC
+  // 將逗號分隔的 email 轉換為陣列
+  const emailList = ccEmails.split(',')
+    .map(email => email.trim())
+    .filter(email => email.length > 0);
+  
+  // 根據 key 決定要寫入的欄位
+  let column;
+  if (key === 'assetHitCc') column = 10;      // J 欄
+  if (key === 'notInUseCc') column = 11;      // K 欄
+  if (key === 'processedCc') column = 12;     // L 欄
+  
+  if (column) {
+    writeColumnEmails(sheet, column, emailList);
+  }
   
   return { success: true };
 }
 
 /**
- * 更新命中資產主要收件人設定
+ * 更新命中資產主要收件人設定（寫入多列）
  * @param {string} recipients - 主要收件人郵件地址（多個以逗號分隔）
  * @returns {Object} { success: boolean }
  */
 function updateAssetHitRecipients(recipients) {
   const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.SETTINGS_SHEET_NAME);
-  const cleanedRecipients = recipients.trim();
-  sheet.getRange("M2").setValue(cleanedRecipients);  // M2: 命中資產主要收件人
+  
+  // 將逗號分隔的 email 轉換為陣列
+  const emailList = recipients.split(',')
+    .map(email => email.trim())
+    .filter(email => email.length > 0);
+  
+  // 寫入 M 欄（第 13 欄）
+  writeColumnEmails(sheet, 13, emailList);
+  
   return { success: true };
+}
+
+/**
+ * 將 email 陣列寫入指定欄位（從第 2 列開始，每個 email 一列）
+ * @param {Sheet} sheet - 工作表
+ * @param {number} column - 欄位編號（1-based）
+ * @param {string[]} emailList - email 陣列
+ */
+function writeColumnEmails(sheet, column, emailList) {
+  // 先清除該欄從第 2 列開始的所有資料
+  const lastRow = sheet.getLastRow();
+  if (lastRow >= 2) {
+    const numRowsToClear = lastRow - 1;
+    sheet.getRange(2, column, numRowsToClear, 1).clearContent();
+  }
+  
+  // 寫入新的 email 列表
+  if (emailList.length > 0) {
+    const values = emailList.map(email => [email]);
+    sheet.getRange(2, column, emailList.length, 1).setValues(values);
+  }
 }
 
 /**
