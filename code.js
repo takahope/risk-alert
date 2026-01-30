@@ -315,9 +315,17 @@ function processSingleMessage(message, assetList, settings) {
   }
 
   // 搜尋所有命中的資產（比對所有提取的欄位：警訊名稱、漏洞說明、內容說明、影響平台、影響等級）
-  const matchedAssets = assetList.filter(asset => 
+  let matchedAssets = assetList.filter(asset => 
     matchFields.some(field => field.toLowerCase().includes(asset.toLowerCase()))
   );
+  
+  // [新增] 若主要欄位未匹配到任何資產，則使用「DN 與 IP 黑名單」作為備用匹配
+  const fallbackMatchFields = warningInfo.fallbackMatchFields || [];
+  if (matchedAssets.length === 0 && fallbackMatchFields.length > 0) {
+    matchedAssets = assetList.filter(asset => 
+      fallbackMatchFields.some(field => field.toLowerCase().includes(asset.toLowerCase()))
+    );
+  }
   
   // [新增] 去除重複的資產（不區分大小寫）
   const uniqueAssets = [...new Set(matchedAssets.map(a => a.toLowerCase()))]
@@ -361,29 +369,36 @@ function extractWarningInfo(text) {
   const platformRegex = /影響平台[：:]\s*(.+)/i;
   // [新增] 影響等級
   const levelRegex = /影響等級[：:]\s*(.+)/i;
+  // [新增] DN 與 IP 黑名單 (作為最後備用匹配)
+  const blacklistRegex = /DN\s*與\s*IP\s*黑名單[：:]\s*(.+)/i;
   
   const nameMatch = text.match(nameRegex);
   const descMatch = text.match(descRegex);
   const contentMatch = text.match(contentRegex);
   const platformMatch = text.match(platformRegex);
   const levelMatch = text.match(levelRegex);
+  const blacklistMatch = text.match(blacklistRegex);
   
   const name = (nameMatch && nameMatch[1]) ? nameMatch[1].trim() : null;
   const desc = (descMatch && descMatch[1]) ? descMatch[1].trim() : null;
   const content = (contentMatch && contentMatch[1]) ? contentMatch[1].trim() : null;
   const platform = (platformMatch && platformMatch[1]) ? platformMatch[1].trim() : null;
   const level = (levelMatch && levelMatch[1]) ? levelMatch[1].trim() : null;
+  const blacklist = (blacklistMatch && blacklistMatch[1]) ? blacklistMatch[1].trim() : null;
   
   // 組合顯示結果
   let displayName = '';
   
-  // 優先使用警訊名稱
+  // 優先使用警訊名稱，其次是漏洞說明、內容說明，最後是黑名單
   if (name) {
     displayName = name;
   } else if (desc) {
     displayName = desc;
   } else if (content) {
     displayName = content;
+  } else if (blacklist) {
+    // [新增] 當其他欄位都沒有時，使用黑名單作為顯示名稱
+    displayName = `DN 與 IP 黑名單: ${blacklist}`;
   }
   
   // 如果有結果，附加額外資訊
@@ -393,16 +408,18 @@ function extractWarningInfo(text) {
     if (content && !displayName.includes(content)) extras.push(`內容: ${content}`);
     if (platform) extras.push(`平台: ${platform}`);
     if (level) extras.push(`等級: ${level}`);
+    if (blacklist) extras.push(`黑名單: ${blacklist}`);
     
     if (extras.length > 0) {
       displayName += ` (${extras.join(' | ')})`;
     }
   }
   
-  // 返回物件：包含顯示名稱和用於匹配的欄位陣列
+  // 返回物件：包含顯示名稱、主要匹配欄位和備用匹配欄位
   return {
     displayName: displayName || null,
-    matchFields: [name, desc, content, platform, level].filter(Boolean)
+    matchFields: [name, desc, content, platform, level].filter(Boolean),
+    fallbackMatchFields: blacklist ? [blacklist] : []  // DN 與 IP 黑名單作為備用匹配
   };
 }
 
@@ -544,11 +561,26 @@ function checkUserAuthorization() {
 function ensureLogSheetExists() {
   const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
   let sheet = ss.getSheetByName(CONFIG.LOG_SHEET_NAME);
+  
+  // 標準標題列
+  const headers = ['Timestamp', 'Status', 'Warning Name', 'Matched Asset', 'Action', 'Email Date', 'Message ID', 'Has Reply', 'Not In Use', 'Operator', 'Email Content'];
+  
   if (!sheet) {
+    // 工作表不存在，建立新的
     sheet = ss.insertSheet(CONFIG.LOG_SHEET_NAME);
-    // [修改] 新增 'Has Reply', 'Not In Use', 'Operator', 'Email Content' 標題
-    sheet.appendRow(['Timestamp', 'Status', 'Warning Name', 'Matched Asset', 'Action', 'Email Date', 'Message ID', 'Has Reply', 'Not In Use', 'Operator', 'Email Content']);
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     sheet.setFrozenRows(1);
+  } else {
+    // 工作表已存在，檢查第一列是否有標題
+    const firstRowValue = sheet.getRange(1, 1).getValue();
+    
+    // 如果第一列第一格為空或不是 'Timestamp'，則寫入標題
+    if (!firstRowValue || firstRowValue !== 'Timestamp') {
+      // 在第一列插入新行作為標題
+      sheet.insertRowBefore(1);
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      sheet.setFrozenRows(1);
+    }
   }
 }
 
