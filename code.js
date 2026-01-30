@@ -18,12 +18,13 @@ function doGet() {
 function getSystemSettings() {
   ensureSettingsSheetExists();
   const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.SETTINGS_SHEET_NAME);
-  const values = sheet.getRange("A2:G2").getDisplayValues()[0];
+  const values = sheet.getRange("A2:H2").getDisplayValues()[0];
   return {
     scanRead: values[0] === "是",
     autoDraft: values[1] === "是",
     chatNotify: values[2] === "是",
-    notInUseSendEmail: values[6] === "是"  // G2: 未使用寄信通知
+    notInUseSendEmail: values[6] === "是",      // G2: 未使用寄信通知
+    processedSendEmail: values[7] === "是"      // H2: 已處理寄信通知
   };
 }
 
@@ -34,7 +35,8 @@ function updateSystemSetting(key, isEnabled) {
   if (key === 'scanRead') sheet.getRange("A2").setValue(val);
   if (key === 'autoDraft') sheet.getRange("B2").setValue(val);
   if (key === 'chatNotify') sheet.getRange("C2").setValue(val);
-  if (key === 'notInUseSendEmail') sheet.getRange("G2").setValue(val);  // G2: 未使用寄信通知
+  if (key === 'notInUseSendEmail') sheet.getRange("G2").setValue(val);   // G2: 未使用寄信通知
+  if (key === 'processedSendEmail') sheet.getRange("H2").setValue(val);  // H2: 已處理寄信通知
   
   return { success: true };
 }
@@ -94,8 +96,12 @@ function updateUsageStatus(rowIndex, usageStatus) {
           draftCreated = createDraftForNotInUse(warningName, matchedAsset, userInfo, originalMessage, settings);
         }
       } else if (usageStatus === '已處理') {
-        // 已處理情境：僅判斷 autoDraft
-        if (settings.autoDraft) {
+        // 已處理情境：優先判斷 processedSendEmail
+        if (settings.processedSendEmail) {
+          // 直接寄信回覆寄件者
+          emailSent = sendEmailForProcessed(warningName, matchedAsset, userInfo, timestamp, originalMessage, settings);
+        } else if (settings.autoDraft) {
+          // 建立草稿
           draftCreated = createDraftForProcessed(warningName, matchedAsset, userInfo, timestamp, originalMessage, settings);
         }
       }
@@ -499,8 +505,8 @@ function ensureSettingsSheetExists() {
   let settingSheet = ss.getSheetByName(CONFIG.SETTINGS_SHEET_NAME);
   if (!settingSheet) {
     settingSheet = ss.insertSheet(CONFIG.SETTINGS_SHEET_NAME);
-    settingSheet.appendRow(['掃描已讀信件 (A2)', '開啟自動草稿 (B2)', '開啟Chat通知 (C2)', '授權使用者 (D欄)', '使用者姓名 (E欄)', '保留欄位 (F欄)', '未使用寄信通知 (G2)']);
-    settingSheet.appendRow(['否', '是', '是', '', '', '', '否']);
+    settingSheet.appendRow(['掃描已讀信件 (A2)', '開啟自動草稿 (B2)', '開啟Chat通知 (C2)', '授權使用者 (D欄)', '使用者姓名 (E欄)', '保留欄位 (F欄)', '未使用寄信通知 (G2)', '已處理寄信通知 (H2)']);
+    settingSheet.appendRow(['否', '是', '是', '', '', '', '否', '否']);
   }
 }
 
@@ -789,6 +795,54 @@ function sendEmailForNotInUse(warningName, matchedAsset, userInfo, originalMessa
     return true;
   } catch (e) {
     console.error('寄信回覆失敗: ' + e.message);
+    return false;
+  }
+}
+
+/**
+ * 直接寄信回覆（已處理情境 - 手動操作）
+ * @param {string} warningName - 警訊名稱
+ * @param {string} matchedAsset - 命中資產
+ * @param {Object} userInfo - 操作者資訊
+ * @param {string} timestamp - 處理時間
+ * @param {GmailMessage|null} originalMessage - 原始郵件
+ * @param {Object} settings - 系統設定
+ * @returns {boolean} 是否成功寄信
+ */
+function sendEmailForProcessed(warningName, matchedAsset, userInfo, timestamp, originalMessage, settings) {
+  try {
+    const replyBody = `
+您好，
+
+關於漏洞預警通知：
+「${warningName}」
+
+經評估確認影響範圍，相關資產「${matchedAsset}」已完成必要之風險處置措施。
+
+處理人員：${userInfo.displayName}
+處理時間：${timestamp}
+
+如有任何問題，請隨時聯繫。
+
+此郵件由系統自動發送。
+    `.trim();
+    
+    if (originalMessage) {
+      // 直接回覆原始郵件
+      originalMessage.reply(replyBody);
+    } else {
+      // 無法找到原始郵件，發送獨立郵件
+      const subject = `[已處理] ${warningName}`;
+      GmailApp.sendEmail(CONFIG.SENDER_B_EMAILS[0] || '', subject, replyBody);
+    }
+    
+    if (settings.chatNotify) {
+      sendToChat(`📧 **[已處理] 已直接寄信回覆**\n警訊：${warningName}\n資產：${matchedAsset}\n處理者：${userInfo.displayName}\n時間：${timestamp}`);
+    }
+    
+    return true;
+  } catch (e) {
+    console.error('已處理寄信回覆失敗: ' + e.message);
     return false;
   }
 }

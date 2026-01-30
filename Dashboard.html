@@ -1442,6 +1442,13 @@
             </label>
             <span>未使用寄信通知</span>
           </div>
+          <div class="setting-item">
+            <label class="switch">
+              <input type="checkbox" id="toggle-processedSendEmail" onchange="updateSetting('processedSendEmail')">
+              <span class="slider"></span>
+            </label>
+            <span>已處理寄信通知</span>
+          </div>
         </div>
         
         <div>
@@ -1650,6 +1657,7 @@
           document.getElementById('toggle-autoDraft').checked = settings.autoDraft;
           document.getElementById('toggle-chatNotify').checked = settings.chatNotify;
           document.getElementById('toggle-notInUseSendEmail').checked = settings.notInUseSendEmail;
+          document.getElementById('toggle-processedSendEmail').checked = settings.processedSendEmail;
         }).getSystemSettings();
       }
 
