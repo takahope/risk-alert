@@ -18,14 +18,17 @@ function doGet() {
 function getSystemSettings() {
   ensureSettingsSheetExists();
   const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.SETTINGS_SHEET_NAME);
-  const values = sheet.getRange("A2:I2").getDisplayValues()[0];
+  const values = sheet.getRange("A2:L2").getDisplayValues()[0];
   return {
     scanRead: values[0] === "是",
     autoDraft: values[1] === "是",
     chatNotify: values[2] === "是",
     notInUseSendEmail: values[6] === "是",      // G2: 未使用寄信通知（無命中資產時）
     processedSendEmail: values[7] === "是",     // H2: 已處理寄信通知
-    assetHitNotify: values[8] === "是"          // I2: 命中資產通知 Person A
+    assetHitNotify: values[8] === "是",         // I2: 命中資產通知 Person A
+    assetHitCc: values[9] || '',                 // J2: 命中資產通知 CC
+    notInUseCc: values[10] || '',                // K2: 未使用寄信通知 CC
+    processedCc: values[11] || ''                // L2: 已處理寄信通知 CC
   };
 }
 
@@ -39,6 +42,23 @@ function updateSystemSetting(key, isEnabled) {
   if (key === 'notInUseSendEmail') sheet.getRange("G2").setValue(val);   // G2: 未使用寄信通知（無命中資產時）
   if (key === 'processedSendEmail') sheet.getRange("H2").setValue(val);  // H2: 已處理寄信通知
   if (key === 'assetHitNotify') sheet.getRange("I2").setValue(val);      // I2: 命中資產通知 Person A
+  
+  return { success: true };
+}
+
+/**
+ * 更新 CC 副本收件人設定
+ * @param {string} key - 設定項目（assetHitCc, notInUseCc, processedCc）
+ * @param {string} ccEmails - CC 郵件地址（多個以逗號分隔）
+ * @returns {Object} { success: boolean }
+ */
+function updateCcSetting(key, ccEmails) {
+  const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.SETTINGS_SHEET_NAME);
+  const cleanedEmails = ccEmails.trim();
+  
+  if (key === 'assetHitCc') sheet.getRange("J2").setValue(cleanedEmails);    // J2: 命中資產通知 CC
+  if (key === 'notInUseCc') sheet.getRange("K2").setValue(cleanedEmails);    // K2: 未使用寄信通知 CC
+  if (key === 'processedCc') sheet.getRange("L2").setValue(cleanedEmails);   // L2: 已處理寄信通知 CC
   
   return { success: true };
 }
@@ -509,8 +529,8 @@ function ensureSettingsSheetExists() {
   let settingSheet = ss.getSheetByName(CONFIG.SETTINGS_SHEET_NAME);
   if (!settingSheet) {
     settingSheet = ss.insertSheet(CONFIG.SETTINGS_SHEET_NAME);
-    settingSheet.appendRow(['掃描已讀信件 (A2)', '開啟自動草稿 (B2)', '開啟Chat通知 (C2)', '授權使用者 (D欄)', '使用者姓名 (E欄)', '保留欄位 (F欄)', '未使用寄信通知 (G2)', '已處理寄信通知 (H2)', '命中資產通知 (I2)']);
-    settingSheet.appendRow(['否', '是', '是', '', '', '', '否', '否', '是']);
+    settingSheet.appendRow(['掃描已讀信件 (A2)', '開啟自動草稿 (B2)', '開啟Chat通知 (C2)', '授權使用者 (D欄)', '使用者姓名 (E欄)', '保留欄位 (F欄)', '未使用寄信通知 (G2)', '已處理寄信通知 (H2)', '命中資產通知 (I2)', '命中資產CC (J2)', '未使用CC (K2)', '已處理CC (L2)']);
+    settingSheet.appendRow(['否', '是', '是', '', '', '', '否', '否', '是', '', '', '']);
   }
 }
 
@@ -716,13 +736,22 @@ function sendEmailForPersonA(warningName, matchedAsset, originalMessage, setting
 此郵件由系統自動轉寄。
     `.trim();
     
-    // 使用 GmailMessage.forward() 轉寄原始郵件
-    originalMessage.forward(CONFIG.PERSON_A_EMAIL, {
+    // 組合轉寄選項，包含 CC
+    const forwardOptions = {
       body: forwardNote
-    });
+    };
+    
+    // 如果有設定 CC 副本收件人
+    if (settings.assetHitCc && settings.assetHitCc.trim()) {
+      forwardOptions.cc = settings.assetHitCc.trim();
+    }
+    
+    // 使用 GmailMessage.forward() 轉寄原始郵件
+    originalMessage.forward(CONFIG.PERSON_A_EMAIL, forwardOptions);
     
     if (settings.chatNotify) {
-      sendToChat(`📧 **[資產命中] 已轉寄給 Person A**\n偵測資產：${matchedAsset}\n警訊名稱：${warningName}`);
+      const ccInfo = settings.assetHitCc ? `\nCC：${settings.assetHitCc}` : '';
+      sendToChat(`📧 **[資產命中] 已轉寄給 Person A**\n偵測資產：${matchedAsset}\n警訊名稱：${warningName}${ccInfo}`);
     }
     
     return true;
@@ -752,10 +781,17 @@ function sendEmailReplyToSenderB(warningName, originalMessage, settings) {
 此郵件由系統自動發送。
     `.trim();
     
-    originalMessage.reply(replyBody);
+    // 組合回覆選項，包含 CC
+    const replyOptions = {};
+    if (settings.notInUseCc && settings.notInUseCc.trim()) {
+      replyOptions.cc = settings.notInUseCc.trim();
+    }
+    
+    originalMessage.reply(replyBody, replyOptions);
     
     if (settings.chatNotify) {
-      sendToChat(`📧 **[無相關資產] 已直接寄信回覆**\n警訊名稱：${warningName}`);
+      const ccInfo = settings.notInUseCc ? `\nCC：${settings.notInUseCc}` : '';
+      sendToChat(`📧 **[無相關資產] 已直接寄信回覆**\n警訊名稱：${warningName}${ccInfo}`);
     }
     
     return true;
@@ -790,17 +826,28 @@ function sendEmailForNotInUse(warningName, matchedAsset, userInfo, originalMessa
 此郵件由系統自動發送。
     `.trim();
     
+    // 組合回覆選項，包含 CC
+    const replyOptions = {};
+    if (settings.notInUseCc && settings.notInUseCc.trim()) {
+      replyOptions.cc = settings.notInUseCc.trim();
+    }
+    
     if (originalMessage) {
       // 直接回覆原始郵件
-      originalMessage.reply(replyBody);
+      originalMessage.reply(replyBody, replyOptions);
     } else {
       // 無法找到原始郵件，發送獨立郵件
       const subject = `[無需處理] ${warningName}`;
-      GmailApp.sendEmail(CONFIG.SENDER_B_EMAILS[0] || '', subject, replyBody);
+      const sendOptions = {};
+      if (settings.notInUseCc && settings.notInUseCc.trim()) {
+        sendOptions.cc = settings.notInUseCc.trim();
+      }
+      GmailApp.sendEmail(CONFIG.SENDER_B_EMAILS[0] || '', subject, replyBody, sendOptions);
     }
     
     if (settings.chatNotify) {
-      sendToChat(`📧 **[未使用] 已直接寄信回覆**\n警訊：${warningName}\n資產：${matchedAsset}\n處理者：${userInfo.displayName}`);
+      const ccInfo = settings.notInUseCc ? `\nCC：${settings.notInUseCc}` : '';
+      sendToChat(`📧 **[未使用] 已直接寄信回覆**\n警訊：${warningName}\n資產：${matchedAsset}\n處理者：${userInfo.displayName}${ccInfo}`);
     }
     
     return true;
@@ -838,17 +885,28 @@ function sendEmailForProcessed(warningName, matchedAsset, userInfo, timestamp, o
 此郵件由系統自動發送。
     `.trim();
     
+    // 組合回覆選項，包含 CC
+    const replyOptions = {};
+    if (settings.processedCc && settings.processedCc.trim()) {
+      replyOptions.cc = settings.processedCc.trim();
+    }
+    
     if (originalMessage) {
       // 直接回覆原始郵件
-      originalMessage.reply(replyBody);
+      originalMessage.reply(replyBody, replyOptions);
     } else {
       // 無法找到原始郵件，發送獨立郵件
       const subject = `[已處理] ${warningName}`;
-      GmailApp.sendEmail(CONFIG.SENDER_B_EMAILS[0] || '', subject, replyBody);
+      const sendOptions = {};
+      if (settings.processedCc && settings.processedCc.trim()) {
+        sendOptions.cc = settings.processedCc.trim();
+      }
+      GmailApp.sendEmail(CONFIG.SENDER_B_EMAILS[0] || '', subject, replyBody, sendOptions);
     }
     
     if (settings.chatNotify) {
-      sendToChat(`📧 **[已處理] 已直接寄信回覆**\n警訊：${warningName}\n資產：${matchedAsset}\n處理者：${userInfo.displayName}\n時間：${timestamp}`);
+      const ccInfo = settings.processedCc ? `\nCC：${settings.processedCc}` : '';
+      sendToChat(`📧 **[已處理] 已直接寄信回覆**\n警訊：${warningName}\n資產：${matchedAsset}\n處理者：${userInfo.displayName}\n時間：${timestamp}${ccInfo}`);
     }
     
     return true;
