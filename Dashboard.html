@@ -2919,6 +2919,8 @@
 
       function loadSettingsModal() {
         google.script.run.withSuccessHandler(function(settings) {
+          console.log('載入設定:', settings); // Debug log
+          
           document.getElementById('setting-scanRead').checked = settings.scanRead;
           document.getElementById('setting-autoDraft').checked = settings.autoDraft;
           document.getElementById('setting-chatNotify').checked = settings.chatNotify;
@@ -2927,6 +2929,7 @@
           document.getElementById('setting-assetHitNotify').checked = settings.assetHitNotify;
           
           // 載入主要收件人設定
+          console.log('主要收件人:', settings.assetHitRecipients); // Debug log
           document.getElementById('setting-assetHitRecipients').value = settings.assetHitRecipients || '';
           
           // 載入 CC 副本收件人設定
