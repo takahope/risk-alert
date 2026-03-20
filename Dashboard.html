@@ -818,6 +818,7 @@
       }
 
       .filter-group input[type="date"],
+      .filter-group input[type="text"],
       .filter-group select {
         padding: 8px 12px;
         border: 1px solid var(--border-color);
@@ -827,6 +828,7 @@
       }
 
       .filter-group input[type="date"]:focus,
+      .filter-group input[type="text"]:focus,
       .filter-group select:focus {
         outline: none;
         border-color: var(--primary-color);
@@ -1568,6 +1570,7 @@
         }
 
         .filter-group input[type="date"],
+        .filter-group input[type="text"],
         .filter-group select {
           width: 100%;
           min-width: unset;
@@ -2123,6 +2126,12 @@
             </div>
           </div>
 
+          <!-- 關鍵字搜尋 -->
+          <div class="filter-group">
+            <label>關鍵字搜尋</label>
+            <input type="text" id="filter-search" placeholder="搜尋警訊名稱或命中資產" oninput="applyFilters()">
+          </div>
+
           <!-- 資產篩選 -->
           <div class="filter-group">
             <label>命中資產</label>
@@ -2326,6 +2335,7 @@
         const showError = document.getElementById('filter-error').checked;
         const assetFilter = document.getElementById('filter-asset').value;
         const onlyNotInUse = document.getElementById('filter-not-in-use').checked;
+        const searchKeyword = document.getElementById('filter-search').value.trim().toLowerCase();
 
         filteredData = allData.filter(row => {
           const [time, status, warningName, asset, action, emailDate, msgId, hasReply, notInUse] = row;
@@ -2340,6 +2350,15 @@
 
           // 資產篩選
           if (assetFilter && asset !== assetFilter) return false;
+
+          // 關鍵字搜尋（僅比對警訊名稱與命中資產）
+          if (searchKeyword) {
+            const warningText = (warningName || '').toLowerCase();
+            const assetText = (asset || '').toLowerCase();
+            if (!warningText.includes(searchKeyword) && !assetText.includes(searchKeyword)) {
+              return false;
+            }
+          }
 
           // 日期篩選 (使用信件時間)
           if (startDate || endDate) {
@@ -2366,6 +2385,7 @@
         document.getElementById('filter-error').checked = true;
         document.getElementById('filter-asset').value = '';
         document.getElementById('filter-not-in-use').checked = false;
+        document.getElementById('filter-search').value = '';
         
         document.querySelectorAll('.quick-filters .btn').forEach(btn => {
           btn.classList.toggle('active', btn.dataset.range === 'all');
