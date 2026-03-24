@@ -21,7 +21,7 @@ const CONFIG = {
   SETTINGS_SHEET_NAME: 'Settings', // [新增] 設定表
   DATA_COLUMN_INDEX: 0, 
   
-  GOOGLE_CHAT_WEBHOOK_URL: 'https://chat.googleapis.coWEfRq3CPzqKqqsHEWtgS9oggV4qis8',
+  GOOGLE_CHAT_WEBHOOK_URL: 'https://chat.googleapis.coWEfRqtgS9oggV4qis8',
   
   // [修改] 搜尋語法：支援多個寄件者和多個標題關鍵字
   getSearchQuery: function() {
