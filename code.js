@@ -238,6 +238,9 @@ function applyUsageStatusUpdate(sheet, actualRow, usageStatus, settings, userEma
   // 更新 J 欄 (操作者)
   sheet.getRange(actualRow, 10).setValue(userEmail);
 
+  // 未使用代表命中資產未被自動排除，記為 false positive
+  sheet.getRange(actualRow, 12).setValue(usageStatus === '未使用' ? 'V' : '');
+
   // 無論是「未使用」或「已處理」，都將 B 欄狀態從 ALERT 改為 SAFE
   const currentStatus = sheet.getRange(actualRow, 2).getValue();
   if (currentStatus === 'ALERT') {
@@ -559,7 +562,7 @@ function processSingleMessage(message, assetList, settings) {
       actionLog = '已建立回覆草稿';
     }
     // 記錄結果（無命中資產 = 未使用）
-    logExecutionResult('SAFE', warningName, '無相關資產', actionLog, msgId, emailDate, hasReply, '未使用', '');
+    logExecutionResult('SAFE', warningName, '無相關資產', actionLog, msgId, emailDate, hasReply, '未使用', '', '');
   }
 }
 
@@ -767,7 +770,7 @@ function ensureLogSheetExists() {
   let sheet = ss.getSheetByName(CONFIG.LOG_SHEET_NAME);
   
   // 標準標題列
-  const headers = ['Timestamp', 'Status', 'Warning Name', 'Matched Asset', 'Action', 'Email Date', 'Message ID', 'Has Reply', 'Not In Use', 'Operator', 'Email Content'];
+  const headers = ['Timestamp', 'Status', 'Warning Name', 'Matched Asset', 'Action', 'Email Date', 'Message ID', 'Has Reply', 'Not In Use', 'Operator', 'Email Content', 'False Positive'];
   
   if (!sheet) {
     // 工作表不存在，建立新的
@@ -784,17 +787,20 @@ function ensureLogSheetExists() {
       sheet.insertRowBefore(1);
       sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
       sheet.setFrozenRows(1);
+    } else {
+      // 補齊新增欄位標題，避免既有工作表缺少 L 欄標頭
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     }
   }
 }
 
-function logExecutionResult(status, warningName, asset, action, msgId, emailDate, hasReply = '', notInUse = '', emailContent = '') {
+function logExecutionResult(status, warningName, asset, action, msgId, emailDate, hasReply = '', notInUse = '', emailContent = '', falsePositive = '') {
   try {
     const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.LOG_SHEET_NAME);
     if (sheet) {
       const time = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
-      // [修改] 寫入順序加入 hasReply, notInUse 和 emailContent (K欄)
-      sheet.appendRow([time, status, warningName, asset, action, emailDate, msgId, hasReply, notInUse, '', emailContent]);
+      // 寫入順序：K 欄為 Email Content，L 欄為 False Positive
+      sheet.appendRow([time, status, warningName, asset, action, emailDate, msgId, hasReply, notInUse, '', emailContent, falsePositive]);
     }
   } catch (e) {
     console.error("寫入 Log 失敗: " + e.message);
