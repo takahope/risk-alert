@@ -2220,10 +2220,11 @@
             </div>
           </div>
 
-          <!-- 未使用篩選 -->
+          <!-- 使用狀態篩選 -->
           <div class="filter-group">
             <label>使用狀態</label>
             <div class="status-checkboxes">
+              <label><input type="checkbox" id="filter-pending" onchange="applyFilters()"> ⏳ 僅顯示待處理</label>
               <label><input type="checkbox" id="filter-not-in-use" onchange="applyFilters()"> 🚫 僅顯示未使用</label>
             </div>
           </div>
@@ -2389,6 +2390,10 @@
 
       function hasUsageStatus(row) {
         return Boolean(row && row[8]);
+      }
+
+      function isPendingUsageDecision(row) {
+        return isRowSelectable(row);
       }
 
       function isRowSelectable(row) {
@@ -2557,6 +2562,7 @@
         const showSafe = document.getElementById('filter-safe').checked;
         const showError = document.getElementById('filter-error').checked;
         const assetFilter = document.getElementById('filter-asset').value;
+        const onlyPending = document.getElementById('filter-pending').checked;
         const onlyNotInUse = document.getElementById('filter-not-in-use').checked;
         const searchKeyword = document.getElementById('filter-search').value.trim().toLowerCase();
 
@@ -2567,6 +2573,9 @@
           if (status === 'ALERT' && !showAlert) return false;
           if (status === 'SAFE' && !showSafe) return false;
           if (status === 'ERROR' && !showError) return false;
+
+          // 待處理篩選 (僅顯示仍需使用者操作使用狀態的項目)
+          if (onlyPending && !isPendingUsageDecision(row)) return false;
 
           // 未使用篩選 (僅顯示有命中且標記為未使用的)
           if (onlyNotInUse && notInUse !== '未使用') return false;
@@ -2608,6 +2617,7 @@
         document.getElementById('filter-safe').checked = true;
         document.getElementById('filter-error').checked = true;
         document.getElementById('filter-asset').value = '';
+        document.getElementById('filter-pending').checked = false;
         document.getElementById('filter-not-in-use').checked = false;
         document.getElementById('filter-search').value = '';
         
