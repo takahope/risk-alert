@@ -2159,17 +2159,16 @@
             <thead>
               <tr>
                 <th width="4%">#</th>
-                <th width="11%">處理時間</th>
-                <th width="11%">信件時間</th>
+                <th width="14%">信件時間</th>
                 <th width="6%">狀態</th>
-                <th width="28%">警訊名稱</th>
-                <th width="18%">命中資產 / 處理結果</th>
+                <th width="32%">警訊名稱</th>
+                <th width="22%">命中資產 / 處理結果</th>
                 <th width="10%">使用狀態</th>
                 <th width="12%">操作者</th>
               </tr>
             </thead>
             <tbody id="data-body">
-              <tr><td colspan="8" style="text-align:center; padding:20px;">資料載入中...</td></tr>
+              <tr><td colspan="7" style="text-align:center; padding:20px;">資料載入中...</td></tr>
             </tbody>
           </table>
         </div>
@@ -2477,7 +2476,7 @@
         mobileCards.innerHTML = '';
 
         if (filteredData.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px;">目前尚無符合條件的紀錄</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px;">目前尚無符合條件的紀錄</td></tr>';
           mobileCards.innerHTML = '<div style="text-align:center; padding:30px; color:#666;">目前尚無符合條件的紀錄</div>';
           document.getElementById('showing-count').textContent = '0';
           return;
@@ -2552,7 +2551,6 @@
           const tr = document.createElement('tr');
           tr.innerHTML = `
             <td>${globalIndex}</td>
-            <td>${time}</td>
             <td>${emailDate || '-'}</td>
             <td><span class="tag ${tagClass}">${statusText}</span></td>
             <td>${warningDisplay}</td>
@@ -2818,20 +2816,20 @@
               allData[originalIndex][9] = result.operator || '';
               
               // 更新表格顯示
-              cells[3].innerHTML = '<span class="tag tag-safe">安全</span>';
+              cells[2].innerHTML = '<span class="tag tag-safe">安全</span>';
               
               if (usageStatus === '未使用') {
-                cells[6].innerHTML = '<span class="tag" style="background:#fff3e0; color:#e65100;">🚫 未使用</span>';
+                cells[5].innerHTML = '<span class="tag" style="background:#fff3e0; color:#e65100;">🚫 未使用</span>';
               } else {
-                cells[6].innerHTML = '<span class="tag" style="background:#e6f4ea; color:#188038;">✅ 已處理</span>';
+                cells[5].innerHTML = '<span class="tag" style="background:#e6f4ea; color:#188038;">✅ 已處理</span>';
               }
               
               // 更新操作者欄 - 顯示完整名稱或僅 email
               if (result.displayName) {
                 const shortName = result.displayName.split(' (')[0] || result.operator.split('@')[0];
-                cells[7].innerHTML = `<small title="${result.displayName}">${shortName}</small>`;
+                cells[6].innerHTML = `<small title="${result.displayName}">${shortName}</small>`;
               } else if (result.operator) {
-                cells[7].innerHTML = `<small title="${result.operator}">${result.operator.split('@')[0]}</small>`;
+                cells[6].innerHTML = `<small title="${result.operator}">${result.operator.split('@')[0]}</small>`;
               }
               
               // 顯示草稿建立結果
@@ -2866,14 +2864,14 @@
         }
 
         // 準備資料
-        const headers = ['#', '處理時間', '信件時間', '狀態', '警訊名稱', '命中資產', '處理結果', '回覆狀態', '使用狀態', '操作者'];
+        const headers = ['#', '信件時間', '狀態', '警訊名稱', '命中資產', '處理結果', '回覆狀態', '使用狀態', '操作者'];
         const rows = filteredData.map((row, index) => {
           const [time, status, warningName, asset, action, emailDate, msgId, hasReply, notInUse, operator] = row;
           let statusText = '安全';
           if (status === 'ALERT') statusText = '風險';
           else if (status === 'ERROR') statusText = '錯誤';
           
-          return [index + 1, time, emailDate || '-', statusText, warningName, asset, action, hasReply || '-', notInUse || '-', operator || '-'];
+          return [index + 1, emailDate || '-', statusText, warningName, asset, action, hasReply || '-', notInUse || '-', operator || '-'];
         });
 
         // 建立工作表
@@ -2883,7 +2881,6 @@
         // 設定欄寬
         ws['!cols'] = [
           { wch: 5 },   // #
-          { wch: 18 },  // 處理時間
           { wch: 18 },  // 信件時間
           { wch: 8 },   // 狀態
           { wch: 50 },  // 警訊名稱
