@@ -145,16 +145,18 @@ function writeColumnEmails(sheet, column, emailList) {
 
 /**
  * 更新使用狀態（未使用/已處理）
- * @param {number} rowIndex - 資料列索引（從 0 開始）
+ * @param {number} sheetRow - SystemLogs 工作表的實際列號（含標題列）
  * @param {string} usageStatus - 使用狀態（'未使用' 或 '已處理'）
  */
-function updateUsageStatus(rowIndex, usageStatus) {
+function updateUsageStatus(sheetRow, usageStatus) {
   try {
     const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.LOG_SHEET_NAME);
     if (!sheet) throw new Error('找不到 Log 工作表');
     
-    // rowIndex 是從 0 開始的資料索引，加上標題列後變成實際列號
-    const actualRow = rowIndex + 2;
+    const actualRow = Number(sheetRow);
+    if (!actualRow || actualRow < 2) {
+      throw new Error('無效的資料列號');
+    }
     
     // 讀取該列的資料（Warning Name, Message ID）
     const rowData = sheet.getRange(actualRow, 1, 1, 10).getDisplayValues()[0];
@@ -255,7 +257,9 @@ function getDashboardData() {
     const numRows = lastRow - 1;
     
     // 讀取前 10 欄用於儀表板顯示 (Timestamp, Status, WarningName, MatchedAsset, Action, Email Date, Message ID, Has Reply, Not In Use, Operator)
-    const values = sheet.getRange(2, 1, numRows, 10).getDisplayValues();
+    // 並附帶實際列號，避免前端排序後回傳錯誤索引
+    const values = sheet.getRange(2, 1, numRows, 10).getDisplayValues()
+      .map((row, index) => [...row, index + 2]);
     
     // 依照 Email Date (index 5) 降序排列 (由近到遠)
     values.sort((a, b) => {

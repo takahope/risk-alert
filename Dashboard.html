@@ -2789,9 +2789,16 @@
         
         const row = filteredData[dataIndex];
         const originalIndex = allData.indexOf(row);
+        const sheetRow = row ? row[10] : null;
         
         if (originalIndex === -1) {
           alert('找不到原始資料');
+          overlay.remove();
+          return;
+        }
+
+        if (!sheetRow) {
+          alert('找不到對應的工作表列號');
           overlay.remove();
           return;
         }
@@ -2846,7 +2853,7 @@
             overlay.remove();
             alert('更新失敗: ' + err.message);
           })
-          .updateUsageStatus(originalIndex, usageStatus);
+          .updateUsageStatus(sheetRow, usageStatus);
       }
 
       // ==========================================
