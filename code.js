@@ -153,77 +153,135 @@ function updateUsageStatus(sheetRow, usageStatus) {
     const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.LOG_SHEET_NAME);
     if (!sheet) throw new Error('找不到 Log 工作表');
     
-    const actualRow = Number(sheetRow);
-    if (!actualRow || actualRow < 2) {
-      throw new Error('無效的資料列號');
-    }
-    
-    // 讀取該列的資料（Warning Name, Message ID）
-    const rowData = sheet.getRange(actualRow, 1, 1, 10).getDisplayValues()[0];
-    const warningName = rowData[2];  // C 欄
-    const matchedAsset = rowData[3]; // D 欄
-    const messageId = rowData[6];    // G 欄
-    
-    // 更新 I 欄 (使用狀態)
-    sheet.getRange(actualRow, 9).setValue(usageStatus);
-    
-    // 取得操作者資訊
+    const actualRow = normalizeSheetRow(sheetRow, sheet.getLastRow());
     const userEmail = Session.getActiveUser().getEmail() || Session.getEffectiveUser().getEmail() || '未知使用者';
     const userInfo = getUserDisplayName(userEmail);
-    
-    // 更新 J 欄 (操作者)
-    sheet.getRange(actualRow, 10).setValue(userEmail);
-    
-    // 無論是「未使用」或「已處理」，都將 B 欄狀態從 ALERT 改為 SAFE
-    const currentStatus = sheet.getRange(actualRow, 2).getValue();
-    if (currentStatus === 'ALERT') {
-      sheet.getRange(actualRow, 2).setValue('SAFE');
-    }
-    
-    // 檢查設定
     const settings = getSystemSettings();
-    let draftCreated = false;
-    let emailSent = false;
+    const result = applyUsageStatusUpdate(sheet, actualRow, usageStatus, settings, userEmail, userInfo);
     
-    if (messageId) {
-      // 嘗試透過 Message ID 找到原始郵件
-      const originalMessage = findMessageById(messageId);
-      const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
-      
-      if (usageStatus === '未使用') {
-        // 未使用情境：優先判斷 notInUseSendEmail
-        if (settings.notInUseSendEmail) {
-          // 直接寄信回覆寄件者
-          emailSent = sendEmailForNotInUse(warningName, matchedAsset, userInfo, originalMessage, settings);
-        } else if (settings.autoDraft) {
-          // 建立草稿
-          draftCreated = createDraftForNotInUse(warningName, matchedAsset, userInfo, originalMessage, settings);
-        }
-      } else if (usageStatus === '已處理') {
-        // 已處理情境：優先判斷 processedSendEmail
-        if (settings.processedSendEmail) {
-          // 直接寄信回覆寄件者
-          emailSent = sendEmailForProcessed(warningName, matchedAsset, userInfo, timestamp, originalMessage, settings);
-        } else if (settings.autoDraft) {
-          // 建立草稿
-          draftCreated = createDraftForProcessed(warningName, matchedAsset, userInfo, timestamp, originalMessage, settings);
-        }
-      }
-      
-      // 更新 E 欄 (Action) 加上草稿/寄信資訊
-      if (draftCreated || emailSent) {
-        const currentAction = sheet.getRange(actualRow, 5).getValue();
-        const actionType = emailSent ? '郵件已發送' : '草稿已建立';
-        const newAction = currentAction + ` | ${usageStatus}${actionType}`;
-        sheet.getRange(actualRow, 5).setValue(newAction);
-      }
-    }
-    
-    return { success: true, operator: userEmail, displayName: userInfo.displayName, draftCreated: draftCreated, emailSent: emailSent };
+    return { success: true, operator: userEmail, displayName: userInfo.displayName, draftCreated: result.draftCreated, emailSent: result.emailSent };
   } catch (e) {
     console.error('更新使用狀態失敗: ' + e.message);
     return { success: false, error: e.message };
   }
+}
+
+/**
+ * 批次更新使用狀態
+ * @param {number[]} sheetRows - SystemLogs 工作表的實際列號陣列
+ * @param {string} usageStatus - 使用狀態（'未使用' 或 '已處理'）
+ */
+function updateUsageStatuses(sheetRows, usageStatus) {
+  try {
+    const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.LOG_SHEET_NAME);
+    if (!sheet) throw new Error('找不到 Log 工作表');
+
+    const lastRow = sheet.getLastRow();
+    const normalizedRows = [...new Set((sheetRows || []).map(row => normalizeSheetRow(row, lastRow)))];
+    if (normalizedRows.length === 0) {
+      throw new Error('沒有可更新的資料');
+    }
+
+    const userEmail = Session.getActiveUser().getEmail() || Session.getEffectiveUser().getEmail() || '未知使用者';
+    const userInfo = getUserDisplayName(userEmail);
+    const settings = getSystemSettings();
+    const updatedRows = [];
+    const failedRows = [];
+    let draftCreatedCount = 0;
+    let emailSentCount = 0;
+
+    normalizedRows.forEach(actualRow => {
+      try {
+        const result = applyUsageStatusUpdate(sheet, actualRow, usageStatus, settings, userEmail, userInfo);
+        updatedRows.push(actualRow);
+        if (result.draftCreated) draftCreatedCount++;
+        if (result.emailSent) emailSentCount++;
+      } catch (rowError) {
+        failedRows.push({ sheetRow: actualRow, error: rowError.message });
+      }
+    });
+
+    return {
+      success: updatedRows.length > 0,
+      operator: userEmail,
+      displayName: userInfo.displayName,
+      updatedRows: updatedRows,
+      failedRows: failedRows,
+      draftCreatedCount: draftCreatedCount,
+      emailSentCount: emailSentCount,
+      error: updatedRows.length === 0 ? '批次更新失敗' : ''
+    };
+  } catch (e) {
+    console.error('批次更新使用狀態失敗: ' + e.message);
+    return { success: false, error: e.message, updatedRows: [], failedRows: [] };
+  }
+}
+
+function normalizeSheetRow(sheetRow, maxRow) {
+  const actualRow = Number(sheetRow);
+  if (!actualRow || actualRow < 2 || (maxRow && actualRow > maxRow)) {
+    throw new Error('無效的資料列號');
+  }
+  return actualRow;
+}
+
+function applyUsageStatusUpdate(sheet, actualRow, usageStatus, settings, userEmail, userInfo) {
+  // 讀取該列的資料（Warning Name, Message ID）
+  const rowData = sheet.getRange(actualRow, 1, 1, 10).getDisplayValues()[0];
+  const warningName = rowData[2];  // C 欄
+  const matchedAsset = rowData[3]; // D 欄
+  const messageId = rowData[6];    // G 欄
+
+  // 更新 I 欄 (使用狀態)
+  sheet.getRange(actualRow, 9).setValue(usageStatus);
+
+  // 更新 J 欄 (操作者)
+  sheet.getRange(actualRow, 10).setValue(userEmail);
+
+  // 無論是「未使用」或「已處理」，都將 B 欄狀態從 ALERT 改為 SAFE
+  const currentStatus = sheet.getRange(actualRow, 2).getValue();
+  if (currentStatus === 'ALERT') {
+    sheet.getRange(actualRow, 2).setValue('SAFE');
+  }
+
+  let draftCreated = false;
+  let emailSent = false;
+
+  if (messageId) {
+    // 嘗試透過 Message ID 找到原始郵件
+    const originalMessage = findMessageById(messageId);
+    const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
+
+    if (usageStatus === '未使用') {
+      // 未使用情境：優先判斷 notInUseSendEmail
+      if (settings.notInUseSendEmail) {
+        // 直接寄信回覆寄件者
+        emailSent = sendEmailForNotInUse(warningName, matchedAsset, userInfo, originalMessage, settings);
+      } else if (settings.autoDraft) {
+        // 建立草稿
+        draftCreated = createDraftForNotInUse(warningName, matchedAsset, userInfo, originalMessage, settings);
+      }
+    } else if (usageStatus === '已處理') {
+      // 已處理情境：優先判斷 processedSendEmail
+      if (settings.processedSendEmail) {
+        // 直接寄信回覆寄件者
+        emailSent = sendEmailForProcessed(warningName, matchedAsset, userInfo, timestamp, originalMessage, settings);
+      } else if (settings.autoDraft) {
+        // 建立草稿
+        draftCreated = createDraftForProcessed(warningName, matchedAsset, userInfo, timestamp, originalMessage, settings);
+      }
+    }
+
+    // 更新 E 欄 (Action) 加上草稿/寄信資訊
+    if (draftCreated || emailSent) {
+      const currentAction = sheet.getRange(actualRow, 5).getValue();
+      const actionType = emailSent ? '郵件已發送' : '草稿已建立';
+      const newAction = currentAction + ` | ${usageStatus}${actionType}`;
+      sheet.getRange(actualRow, 5).setValue(newAction);
+    }
+  }
+
+  return { draftCreated: draftCreated, emailSent: emailSent };
 }
 
 /**

@@ -105,6 +105,15 @@
         background-color: #0d652d;
       }
 
+      .btn-warning {
+        background-color: #ff9800;
+        color: white;
+      }
+
+      .btn-warning:hover {
+        background-color: #f57c00;
+      }
+
       .btn:disabled {
         background-color: #ccc;
         cursor: not-allowed;
@@ -1139,6 +1148,71 @@
       }
 
       /* 使用狀態按鈕 */ */
+      .bulk-action-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        border-bottom: 1px solid #e8eaed;
+        background: #fafbfc;
+      }
+
+      .bulk-selection-info {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        color: #5f6368;
+        font-size: 13px;
+      }
+
+      .selection-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 500;
+        color: #1f1f1f;
+      }
+
+      .selection-toggle input,
+      .row-select-checkbox {
+        width: 16px;
+        height: 16px;
+        cursor: pointer;
+      }
+
+      .row-select-checkbox:disabled,
+      .selection-toggle input:disabled {
+        cursor: not-allowed;
+      }
+
+      .bulk-action-buttons {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .selected-count {
+        font-weight: 600;
+        color: #1a73e8;
+      }
+
+      .row-select-cell {
+        text-align: center;
+        vertical-align: middle;
+      }
+
+      .row-select-placeholder {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border-radius: 4px;
+        background: #f1f3f4;
+        border: 1px solid #dadce0;
+      }
+
       .usage-btn-group {
         display: flex;
         flex-direction: column;
@@ -1603,6 +1677,21 @@
           justify-content: center;
         }
 
+        .bulk-action-bar {
+          flex-direction: column;
+          align-items: stretch;
+        }
+
+        .bulk-selection-info,
+        .bulk-action-buttons {
+          width: 100%;
+        }
+
+        .bulk-action-buttons .btn {
+          flex: 1;
+          justify-content: center;
+        }
+
         /* 表格卡片 - 移動端 */
         .card-header {
           padding: 10px 12px;
@@ -1644,6 +1733,13 @@
           margin-bottom: 8px;
           padding-bottom: 8px;
           border-bottom: 1px solid #f0f0f0;
+        }
+
+        .mobile-card-header-left {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          min-width: 0;
         }
 
         .mobile-card-header .tag {
@@ -1716,6 +1812,12 @@
         .mobile-card-operator {
           font-size: 11px;
           color: #888;
+        }
+
+        .mobile-card-select {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
         }
 
         /* 移動端使用狀態按鈕 */
@@ -2154,21 +2256,44 @@
           <h3>📋 詳細紀錄</h3>
           <span class="record-count">顯示 <span id="showing-count">0</span> / <span id="total-count">0</span> 筆</span>
         </div>
+        <div class="bulk-action-bar">
+          <div class="bulk-selection-info">
+            <label class="selection-toggle">
+              <input type="checkbox" id="select-all-page" onchange="togglePageSelection(this.checked)">
+              <span>全選本頁</span>
+            </label>
+            <span class="selected-count" id="selected-count">已選取 0 筆</span>
+          </div>
+          <div class="bulk-action-buttons">
+            <button id="btn-bulk-notuse" class="btn btn-warning" onclick="confirmBatchUsageStatus('未使用')" disabled>
+              🚫 批次未使用
+            </button>
+            <button id="btn-bulk-done" class="btn btn-success" onclick="confirmBatchUsageStatus('已處理')" disabled>
+              ✅ 批次已處理
+            </button>
+            <button id="btn-clear-selection" class="btn btn-outline" onclick="clearSelectedRows()" disabled>
+              清除勾選
+            </button>
+          </div>
+        </div>
         <div class="table-wrapper">
           <table>
             <thead>
               <tr>
+                <th width="5%">
+                  <input type="checkbox" id="select-all-table" onchange="togglePageSelection(this.checked)" title="全選本頁可處理項目">
+                </th>
                 <th width="4%">#</th>
                 <th width="14%">信件時間</th>
                 <th width="6%">狀態</th>
-                <th width="32%">警訊名稱</th>
-                <th width="22%">命中資產 / 處理結果</th>
+                <th width="28%">警訊名稱</th>
+                <th width="21%">命中資產 / 處理結果</th>
                 <th width="10%">使用狀態</th>
                 <th width="12%">操作者</th>
               </tr>
             </thead>
             <tbody id="data-body">
-              <tr><td colspan="7" style="text-align:center; padding:20px;">資料載入中...</td></tr>
+              <tr><td colspan="8" style="text-align:center; padding:20px;">資料載入中...</td></tr>
             </tbody>
           </table>
         </div>
@@ -2201,6 +2326,7 @@
       // ==========================================
       let allData = [];           // 從後端取得的完整資料
       let filteredData = [];      // 篩選後的資料
+      let selectedSheetRows = new Set();
       let currentPage = 1;
       let pageSize = 50;
 
@@ -2245,6 +2371,7 @@
       function loadData() {
         google.script.run.withSuccessHandler(function(data) {
           allData = data || [];
+          pruneSelectedRows();
           populateAssetDropdown();
           applyFilters();
           updateLastUpdated();
@@ -2254,6 +2381,103 @@
       function updateLastUpdated() {
         const now = new Date();
         document.getElementById('last-updated').textContent = now.toTimeString().split(' ')[0];
+      }
+
+      function getSheetRow(row) {
+        return row ? Number(row[10]) : null;
+      }
+
+      function hasUsageStatus(row) {
+        return Boolean(row && row[8]);
+      }
+
+      function isRowSelectable(row) {
+        return Boolean(getSheetRow(row)) && !hasUsageStatus(row);
+      }
+
+      function getDisplayData() {
+        if (pageSize === 'all') return filteredData;
+        const start = (currentPage - 1) * pageSize;
+        const end = start + pageSize;
+        return filteredData.slice(start, end);
+      }
+
+      function pruneSelectedRows() {
+        const rowMap = new Map(allData.map(row => [getSheetRow(row), row]));
+        selectedSheetRows = new Set(
+          [...selectedSheetRows].filter(sheetRow => rowMap.has(sheetRow) && isRowSelectable(rowMap.get(sheetRow)))
+        );
+      }
+
+      function toggleRowSelection(sheetRow, checked) {
+        if (!sheetRow) return;
+        if (checked) {
+          selectedSheetRows.add(sheetRow);
+        } else {
+          selectedSheetRows.delete(sheetRow);
+        }
+        updateBulkActionState();
+      }
+
+      function togglePageSelection(checked) {
+        getDisplayData()
+          .filter(isRowSelectable)
+          .forEach(row => {
+            const sheetRow = getSheetRow(row);
+            if (!sheetRow) return;
+            if (checked) {
+              selectedSheetRows.add(sheetRow);
+            } else {
+              selectedSheetRows.delete(sheetRow);
+            }
+          });
+        renderTable();
+      }
+
+      function clearSelectedRows() {
+        selectedSheetRows.clear();
+        updateBulkActionState();
+        renderTable();
+      }
+
+      function updateBulkActionState() {
+        const selectedCount = selectedSheetRows.size;
+        document.getElementById('selected-count').textContent = `已選取 ${selectedCount} 筆`;
+        document.getElementById('btn-bulk-notuse').disabled = selectedCount === 0;
+        document.getElementById('btn-bulk-done').disabled = selectedCount === 0;
+        document.getElementById('btn-clear-selection').disabled = selectedCount === 0;
+
+        const selectableRows = getDisplayData().filter(isRowSelectable).map(getSheetRow);
+        const selectedOnPage = selectableRows.filter(sheetRow => selectedSheetRows.has(sheetRow)).length;
+        const allChecked = selectableRows.length > 0 && selectedOnPage === selectableRows.length;
+        const partiallyChecked = selectedOnPage > 0 && selectedOnPage < selectableRows.length;
+
+        ['select-all-page', 'select-all-table'].forEach(id => {
+          const checkbox = document.getElementById(id);
+          if (!checkbox) return;
+          checkbox.disabled = selectableRows.length === 0;
+          checkbox.checked = allChecked;
+          checkbox.indeterminate = partiallyChecked;
+        });
+      }
+
+      function syncLocalRowUpdate(sheetRows, usageStatus, operator) {
+        const targetRows = new Set(sheetRows.map(Number));
+        allData.forEach(row => {
+          if (!targetRows.has(getSheetRow(row))) return;
+          row[8] = usageStatus;
+          row[1] = 'SAFE';
+          row[9] = operator || '';
+        });
+        targetRows.forEach(sheetRow => selectedSheetRows.delete(sheetRow));
+      }
+
+      function showToast(message, backgroundColor = '#188038') {
+        const toast = document.createElement('div');
+        toast.style.cssText = `position:fixed;top:20px;right:20px;background:${backgroundColor};color:white;padding:12px 20px;border-radius:8px;z-index:10000;box-shadow:0 4px 12px rgba(0,0,0,0.15);animation:slideIn 0.3s ease;`;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
       }
 
       // 填充資產下拉選單
@@ -2326,7 +2550,7 @@
         return date.toISOString().split('T')[0];
       }
 
-      function applyFilters() {
+      function applyFilters(preservePage = false) {
         const startDate = document.getElementById('filter-start-date').value;
         const endDate = document.getElementById('filter-end-date').value;
         const showAlert = document.getElementById('filter-alert').checked;
@@ -2369,7 +2593,8 @@
           return true;
         });
 
-        currentPage = 1;
+        const totalPages = pageSize === 'all' ? 1 : Math.max(1, Math.ceil(filteredData.length / pageSize));
+        currentPage = preservePage ? Math.min(currentPage, totalPages) : 1;
         updateStats();
         updateChart();
         renderTable();
@@ -2476,26 +2701,19 @@
         mobileCards.innerHTML = '';
 
         if (filteredData.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px;">目前尚無符合條件的紀錄</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px;">目前尚無符合條件的紀錄</td></tr>';
           mobileCards.innerHTML = '<div style="text-align:center; padding:30px; color:#666;">目前尚無符合條件的紀錄</div>';
           document.getElementById('showing-count').textContent = '0';
+          updateBulkActionState();
           return;
         }
 
-        // 分頁計算
-        let displayData;
-        if (pageSize === 'all') {
-          displayData = filteredData;
-        } else {
-          const start = (currentPage - 1) * pageSize;
-          const end = start + pageSize;
-          displayData = filteredData.slice(start, end);
-        }
+        const displayData = getDisplayData();
 
         document.getElementById('showing-count').textContent = displayData.length;
 
         displayData.forEach((row, index) => {
-          const [time, status, warningName, asset, action, emailDate, msgId, hasReply, notInUse, operator] = row;
+          const [time, status, warningName, asset, action, emailDate, msgId, hasReply, notInUse, operator, sheetRow] = row;
           
           let tagClass = 'tag-safe';
           let statusText = '安全';
@@ -2515,6 +2733,11 @@
             : '';
 
           // ========== 桌面版表格 ==========
+          const isSelectable = isRowSelectable(row);
+          const isSelected = selectedSheetRows.has(sheetRow);
+          const selectionCell = isSelectable
+            ? `<input type="checkbox" class="row-select-checkbox" onchange="toggleRowSelection(${sheetRow}, this.checked)" ${isSelected ? 'checked' : ''} aria-label="選取第 ${globalIndex} 筆">`
+            : '<span class="row-select-placeholder" title="此筆已完成處理"></span>';
           let usageStatus = '';
           if (notInUse === '未使用') {
             usageStatus = '<span class="tag" style="background:#fff3e0; color:#e65100;">🚫 未使用</span>';
@@ -2523,10 +2746,10 @@
           } else {
             usageStatus = `
               <div class="usage-btn-group">
-                <button class="usage-btn usage-btn-notuse" onclick="confirmUsageStatus(${dataIndex}, '未使用', this)" title="標記此資產為未使用，狀態將變更為安全">
+                <button class="usage-btn usage-btn-notuse" onclick="confirmUsageStatus(${dataIndex}, '未使用')" title="標記此資產為未使用，狀態將變更為安全">
                   <span class="btn-icon">🚫</span>未使用
                 </button>
-                <button class="usage-btn usage-btn-done" onclick="confirmUsageStatus(${dataIndex}, '已處理', this)" title="標記此警訊已處理完畢，狀態將變更為安全">
+                <button class="usage-btn usage-btn-done" onclick="confirmUsageStatus(${dataIndex}, '已處理')" title="標記此警訊已處理完畢，狀態將變更為安全">
                   <span class="btn-icon">✅</span>已處理
                 </button>
               </div>
@@ -2550,6 +2773,7 @@
 
           const tr = document.createElement('tr');
           tr.innerHTML = `
+            <td class="row-select-cell">${selectionCell}</td>
             <td>${globalIndex}</td>
             <td>${emailDate || '-'}</td>
             <td><span class="tag ${tagClass}">${statusText}</span></td>
@@ -2561,6 +2785,11 @@
           tbody.appendChild(tr);
 
           // ========== 移動端卡片 ==========
+          const mobileSelectControl = isSelectable
+            ? `<label class="mobile-card-select">
+                <input type="checkbox" class="row-select-checkbox" onchange="toggleRowSelection(${sheetRow}, this.checked)" ${isSelected ? 'checked' : ''} aria-label="選取第 ${globalIndex} 筆">
+              </label>`
+            : '<span class="row-select-placeholder" title="此筆已完成處理"></span>';
           let mobileUsageStatus = '';
           if (notInUse === '未使用') {
             mobileUsageStatus = '<span class="mobile-usage-status" style="background:#fff3e0; color:#e65100; padding:4px 8px; border-radius:4px; font-size:12px;">🚫 未使用</span>';
@@ -2569,10 +2798,10 @@
           } else {
             mobileUsageStatus = `
               <div class="mobile-usage-btns">
-                <button class="usage-btn usage-btn-notuse" onclick="confirmUsageStatus(${dataIndex}, '未使用', this)">
+                <button class="usage-btn usage-btn-notuse" onclick="confirmUsageStatus(${dataIndex}, '未使用')">
                   🚫 未使用
                 </button>
-                <button class="usage-btn usage-btn-done" onclick="confirmUsageStatus(${dataIndex}, '已處理', this)">
+                <button class="usage-btn usage-btn-done" onclick="confirmUsageStatus(${dataIndex}, '已處理')">
                   ✅ 已處理
                 </button>
               </div>
@@ -2588,7 +2817,10 @@
           card.id = cardId;
           card.innerHTML = `
             <div class="mobile-card-header">
-              <span class="tag ${tagClass}">${statusText}</span>
+              <div class="mobile-card-header-left">
+                ${mobileSelectControl}
+                <span class="tag ${tagClass}">${statusText}</span>
+              </div>
               <span class="mobile-card-date">${emailDate ? emailDate.split(' ')[0] : '-'}</span>
             </div>
             <div class="mobile-card-title ${truncatedWarning ? 'truncated' : ''}" id="title-${cardId}">
@@ -2607,6 +2839,8 @@
           `;
           mobileCards.appendChild(card);
         });
+
+        updateBulkActionState();
       }
 
       // 移動端展開/收合
@@ -2714,9 +2948,49 @@
       // ==========================================
       // 使用狀態更新
       // ==========================================
-      
-      // 確認對話框
-      function confirmUsageStatus(dataIndex, usageStatus, buttonElement) {
+
+      function buildConfirmDialog(title, message, confirmLabel, confirmClass, onConfirm) {
+        const overlay = document.createElement('div');
+        overlay.className = 'confirm-overlay';
+        overlay.innerHTML = `
+          <div class="confirm-dialog">
+            <h4>${title}</h4>
+            <p>${message}</p>
+            <p style="color:#888; font-size:12px;">ℹ️ 狀態將自動變更為「安全」</p>
+            <div class="dialog-actions">
+              <button class="btn-cancel" type="button">取消</button>
+              <button class="btn-confirm ${confirmClass}" type="button">${confirmLabel}</button>
+            </div>
+          </div>
+        `;
+
+        const closeOverlay = () => {
+          overlay.remove();
+          document.removeEventListener('keydown', escHandler);
+        };
+
+        const escHandler = function(e) {
+          if (e.key === 'Escape') {
+            closeOverlay();
+          }
+        };
+
+        overlay.addEventListener('click', function(e) {
+          if (e.target === overlay) {
+            closeOverlay();
+          }
+        });
+
+        overlay.querySelector('.btn-cancel').addEventListener('click', closeOverlay);
+        overlay.querySelector('.btn-confirm').addEventListener('click', function() {
+          onConfirm(this, closeOverlay);
+        });
+
+        document.addEventListener('keydown', escHandler);
+        document.body.appendChild(overlay);
+      }
+
+      function confirmUsageStatus(dataIndex, usageStatus) {
         const row = filteredData[dataIndex];
         if (!row) {
           alert('找不到資料');
@@ -2732,126 +3006,107 @@
         const message = isNotUse 
           ? `您即將將此警訊標記為「未使用」，表示該資產無需處理。<br><br><strong>警訊：</strong>${warningName.substring(0, 50)}${warningName.length > 50 ? '...' : ''}<br><strong>資產：</strong>${asset || 'N/A'}`
           : `您即將將此警訊標記為「已處理」，表示相關風險已處置完畢。<br><br><strong>警訊：</strong>${warningName.substring(0, 50)}${warningName.length > 50 ? '...' : ''}<br><strong>資產：</strong>${asset || 'N/A'}`;
-
-        const overlay = document.createElement('div');
-        overlay.className = 'confirm-overlay';
-        overlay.innerHTML = `
-          <div class="confirm-dialog">
-            <h4>${icon} ${title}</h4>
-            <p>${message}</p>
-            <p style="color:#888; font-size:12px;">ℹ️ 狀態將自動變更為「安全」</p>
-            <div class="dialog-actions">
-              <button class="btn-cancel" onclick="closeConfirmDialog(this)">取消</button>
-              <button class="btn-confirm ${isNotUse ? 'notuse' : 'done'}" onclick="executeUsageStatus(${dataIndex}, '${usageStatus}', this)">
-                ${icon} 確認${usageStatus}
-              </button>
-            </div>
-          </div>
-        `;
-        
-        // 點擊背景關閉
-        overlay.addEventListener('click', function(e) {
-          if (e.target === overlay) {
-            overlay.remove();
-          }
+        buildConfirmDialog(`${icon} ${title}`, message, `${icon} 確認${usageStatus}`, isNotUse ? 'notuse' : 'done', function(confirmBtn, closeOverlay) {
+          executeUsageStatus(dataIndex, usageStatus, confirmBtn, closeOverlay);
         });
-        
-        // ESC 關閉
-        const escHandler = function(e) {
-          if (e.key === 'Escape') {
-            overlay.remove();
-            document.removeEventListener('keydown', escHandler);
-          }
-        };
-        document.addEventListener('keydown', escHandler);
-        
-        document.body.appendChild(overlay);
-        
-        // 儲存按鈕元素供後續使用
-        overlay.dataset.buttonElement = '';
-        overlay._buttonElement = buttonElement;
       }
 
-      function closeConfirmDialog(btn) {
-        const overlay = btn.closest('.confirm-overlay');
-        if (overlay) overlay.remove();
+      function confirmBatchUsageStatus(usageStatus) {
+        if (selectedSheetRows.size === 0) {
+          alert('請先勾選要處理的資料');
+          return;
+        }
+
+        const isNotUse = usageStatus === '未使用';
+        const icon = isNotUse ? '🚫' : '✅';
+        const title = isNotUse ? '確認批次標記為未使用' : '確認批次標記為已處理';
+        const message = `您即將將 ${selectedSheetRows.size} 筆紀錄批次標記為「${usageStatus}」。<br><br>系統將同步更新使用狀態、操作者與安全狀態。`;
+
+        buildConfirmDialog(`${icon} ${title}`, message, `${icon} 批次${usageStatus}`, isNotUse ? 'notuse' : 'done', function(confirmBtn, closeOverlay) {
+          executeBatchUsageStatus(usageStatus, confirmBtn, closeOverlay);
+        });
       }
 
-      function executeUsageStatus(dataIndex, usageStatus, confirmBtn) {
-        const overlay = confirmBtn.closest('.confirm-overlay');
-        const buttonElement = overlay._buttonElement;
-        
-        // 禁用確認按鈕並顯示載入狀態
+      function executeUsageStatus(dataIndex, usageStatus, confirmBtn, closeOverlay) {
         confirmBtn.disabled = true;
         confirmBtn.innerHTML = '⏳ 處理中...';
         
         const row = filteredData[dataIndex];
-        const originalIndex = allData.indexOf(row);
-        const sheetRow = row ? row[10] : null;
+        const sheetRow = getSheetRow(row);
         
-        if (originalIndex === -1) {
-          alert('找不到原始資料');
-          overlay.remove();
-          return;
-        }
-
         if (!sheetRow) {
           alert('找不到對應的工作表列號');
-          overlay.remove();
+          closeOverlay();
           return;
         }
 
-        // 取得表格列元素
-        const tableRow = buttonElement.closest('tr');
-        const cells = tableRow.querySelectorAll('td');
-        
         google.script.run
           .withSuccessHandler(function(result) {
-            overlay.remove();
+            closeOverlay();
             
             if (result.success) {
-              // 更新本地資料
-              allData[originalIndex][8] = usageStatus;
-              allData[originalIndex][1] = 'SAFE';
-              allData[originalIndex][9] = result.operator || '';
-              
-              // 更新表格顯示
-              cells[2].innerHTML = '<span class="tag tag-safe">安全</span>';
-              
-              if (usageStatus === '未使用') {
-                cells[5].innerHTML = '<span class="tag" style="background:#fff3e0; color:#e65100;">🚫 未使用</span>';
-              } else {
-                cells[5].innerHTML = '<span class="tag" style="background:#e6f4ea; color:#188038;">✅ 已處理</span>';
-              }
-              
-              // 更新操作者欄 - 顯示完整名稱或僅 email
-              if (result.displayName) {
-                const shortName = result.displayName.split(' (')[0] || result.operator.split('@')[0];
-                cells[6].innerHTML = `<small title="${result.displayName}">${shortName}</small>`;
-              } else if (result.operator) {
-                cells[6].innerHTML = `<small title="${result.operator}">${result.operator.split('@')[0]}</small>`;
-              }
-              
-              // 顯示草稿建立結果
+              syncLocalRowUpdate([sheetRow], usageStatus, result.operator || '');
+              applyFilters(true);
+
               if (result.draftCreated) {
-                // 短暫顯示成功提示
-                const toast = document.createElement('div');
-                toast.style.cssText = 'position:fixed;top:20px;right:20px;background:#188038;color:white;padding:12px 20px;border-radius:8px;z-index:10000;box-shadow:0 4px 12px rgba(0,0,0,0.15);animation:slideIn 0.3s ease;';
-                toast.innerHTML = '✅ 已更新狀態並建立草稿';
-                document.body.appendChild(toast);
-                setTimeout(() => toast.remove(), 3000);
+                showToast('✅ 已更新狀態並建立草稿');
+              } else if (result.emailSent) {
+                showToast('✅ 已更新狀態並發送通知');
               }
-              
-              updateStats();
             } else {
               alert('更新失敗: ' + (result.error || '未知錯誤'));
             }
           })
           .withFailureHandler(function(err) {
-            overlay.remove();
+            closeOverlay();
             alert('更新失敗: ' + err.message);
           })
           .updateUsageStatus(sheetRow, usageStatus);
+      }
+
+      function executeBatchUsageStatus(usageStatus, confirmBtn, closeOverlay) {
+        const selectedRows = [...selectedSheetRows];
+        if (selectedRows.length === 0) {
+          closeOverlay();
+          alert('請先勾選要處理的資料');
+          return;
+        }
+
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '⏳ 批次處理中...';
+
+        google.script.run
+          .withSuccessHandler(function(result) {
+            closeOverlay();
+
+            if (!result.success) {
+              alert('批次更新失敗: ' + (result.error || '未知錯誤'));
+              return;
+            }
+
+            syncLocalRowUpdate(result.updatedRows || [], usageStatus, result.operator || '');
+            applyFilters(true);
+
+            const successCount = (result.updatedRows || []).length;
+            const failureCount = (result.failedRows || []).length;
+            let message = `✅ 已完成 ${successCount} 筆批次更新`;
+            if (result.emailSentCount) {
+              message += `，寄出 ${result.emailSentCount} 封通知`;
+            } else if (result.draftCreatedCount) {
+              message += `，建立 ${result.draftCreatedCount} 筆草稿`;
+            }
+
+            showToast(message, failureCount > 0 ? '#f9ab00' : '#188038');
+
+            if (failureCount > 0) {
+              alert(`批次完成，但有 ${failureCount} 筆失敗。\n${result.failedRows.map(item => `列 ${item.sheetRow}: ${item.error}`).join('\n')}`);
+            }
+          })
+          .withFailureHandler(function(err) {
+            closeOverlay();
+            alert('批次更新失敗: ' + err.message);
+          })
+          .updateUsageStatuses(selectedRows, usageStatus);
       }
 
       // ==========================================
