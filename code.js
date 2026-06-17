@@ -29,7 +29,10 @@ function getSystemSettings() {
   const notInUseCcList = readColumnEmails(sheet, 11, 2, numRows);      // K 欄
   const processedCcList = readColumnEmails(sheet, 12, 2, numRows);     // L 欄
   const assetHitRecipientsList = readColumnEmails(sheet, 13, 2, numRows); // M 欄
-  
+
+  // 讀取 N2, O2, P2 三個獨立的自動草稿開關（各功能組獨立）
+  const draftFlags = sheet.getRange("N2:P2").getDisplayValues()[0];
+
   return {
     scanRead: values[0] === "是",
     autoDraft: values[1] === "是",
@@ -37,11 +40,14 @@ function getSystemSettings() {
     notInUseSendEmail: values[6] === "是",      // G2: 未使用寄信通知（無命中資產時）
     processedSendEmail: values[7] === "是",     // H2: 已處理寄信通知
     assetHitNotify: values[8] === "是",         // I2: 命中資產通知
+    assetHitAutoDraft: draftFlags[0] === "是",  // N2: 命中資產自動草稿
+    notInUseAutoDraft: draftFlags[1] === "是",  // O2: 未使用自動草稿
+    processedAutoDraft: draftFlags[2] === "是", // P2: 已處理自動草稿
     assetHitCc: assetHitCcList.join(', '),                              // J 欄: 命中資產通知 CC
     notInUseCc: notInUseCcList.join(', '),                              // K 欄: 未使用寄信通知 CC
     processedCc: processedCcList.join(', '),                            // L 欄: 已處理寄信通知 CC
-    assetHitRecipients: assetHitRecipientsList.length > 0 
-      ? assetHitRecipientsList.join(', ') 
+    assetHitRecipients: assetHitRecipientsList.length > 0
+      ? assetHitRecipientsList.join(', ')
       : CONFIG.PERSON_A_EMAIL                                           // M 欄: 命中資產主要收件人
   };
 }
@@ -72,7 +78,10 @@ function updateSystemSetting(key, isEnabled) {
   if (key === 'notInUseSendEmail') sheet.getRange("G2").setValue(val);   // G2: 未使用寄信通知（無命中資產時）
   if (key === 'processedSendEmail') sheet.getRange("H2").setValue(val);  // H2: 已處理寄信通知
   if (key === 'assetHitNotify') sheet.getRange("I2").setValue(val);      // I2: 命中資產通知
-  
+  if (key === 'assetHitAutoDraft') sheet.getRange("N2").setValue(val);   // N2: 命中資產自動草稿
+  if (key === 'notInUseAutoDraft') sheet.getRange("O2").setValue(val);   // O2: 未使用自動草稿
+  if (key === 'processedAutoDraft') sheet.getRange("P2").setValue(val);  // P2: 已處理自動草稿
+
   return { success: true };
 }
 
@@ -140,6 +149,61 @@ function writeColumnEmails(sheet, column, emailList) {
   if (emailList.length > 0) {
     const values = emailList.map(email => [email]);
     sheet.getRange(2, column, emailList.length, 1).setValues(values);
+  }
+}
+
+/**
+ * 預覽點擊「未使用 / 已處理」後將寄出（或建立草稿、或供手動複製）的信件內容
+ * 供前端在實際執行前彈窗顯示，內容與 applyUsageStatusUpdate 實際使用的 builder 一致。
+ * @param {number} sheetRow - SystemLogs 工作表的實際列號（含標題列）
+ * @param {string} usageStatus - 使用狀態（'未使用' 或 '已處理'）
+ * @returns {Object} { success, mode: 'send'|'draft'|'none', body, usageStatus, hasOriginal, error }
+ */
+function previewUsageStatusEmail(sheetRow, usageStatus) {
+  try {
+    const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.LOG_SHEET_NAME);
+    if (!sheet) throw new Error('找不到 Log 工作表');
+
+    const actualRow = normalizeSheetRow(sheetRow, sheet.getLastRow());
+    const rowData = sheet.getRange(actualRow, 1, 1, 10).getDisplayValues()[0];
+    const warningName = rowData[2];   // C 欄
+    const matchedAsset = rowData[3];  // D 欄
+    const messageId = rowData[6];     // G 欄
+
+    const userEmail = Session.getActiveUser().getEmail() || Session.getEffectiveUser().getEmail() || '未知使用者';
+    const userInfo = getUserDisplayName(userEmail);
+    const settings = getSystemSettings();
+
+    // 與 applyUsageStatusUpdate 相同的優先序：寄信 > 自動草稿 > 僅標記
+    let mode = 'none';
+    let body = '';
+    if (usageStatus === '未使用') {
+      if (settings.notInUseSendEmail) mode = 'send';
+      else if (settings.notInUseAutoDraft) mode = 'draft';
+      body = buildNotInUseReplyBody(warningName, matchedAsset, userInfo.displayName);
+    } else if (usageStatus === '已處理') {
+      if (settings.processedSendEmail) mode = 'send';
+      else if (settings.processedAutoDraft) mode = 'draft';
+      const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
+      body = buildProcessedReplyBody(warningName, matchedAsset, userInfo.displayName, timestamp);
+    } else {
+      throw new Error('未知的使用狀態：' + usageStatus);
+    }
+
+    // 找不到原始信件時無法自動寄信/建草稿，與 applyUsageStatusUpdate 行為一致，降為手動複製
+    if (!messageId) mode = 'none';
+
+    return {
+      success: true,
+      mode: mode,
+      body: body,
+      usageStatus: usageStatus,
+      displayName: userInfo.displayName,
+      hasOriginal: Boolean(messageId)
+    };
+  } catch (e) {
+    console.error('預覽信件內容失敗: ' + e.message);
+    return { success: false, error: e.message };
   }
 }
 
@@ -260,7 +324,7 @@ function applyUsageStatusUpdate(sheet, actualRow, usageStatus, settings, userEma
       if (settings.notInUseSendEmail) {
         // 直接寄信回覆寄件者
         emailSent = sendEmailForNotInUse(warningName, matchedAsset, userInfo, originalMessage, settings);
-      } else if (settings.autoDraft) {
+      } else if (settings.notInUseAutoDraft) {
         // 建立草稿
         draftCreated = createDraftForNotInUse(warningName, matchedAsset, userInfo, originalMessage, settings);
       }
@@ -269,7 +333,7 @@ function applyUsageStatusUpdate(sheet, actualRow, usageStatus, settings, userEma
       if (settings.processedSendEmail) {
         // 直接寄信回覆寄件者
         emailSent = sendEmailForProcessed(warningName, matchedAsset, userInfo, timestamp, originalMessage, settings);
-      } else if (settings.autoDraft) {
+      } else if (settings.processedAutoDraft) {
         // 建立草稿
         draftCreated = createDraftForProcessed(warningName, matchedAsset, userInfo, timestamp, originalMessage, settings);
       }
@@ -497,7 +561,7 @@ function processSingleMessage(message, assetList, settings) {
   // [新增] 特殊處理：如果包含「DN 與 IP 黑名單」關鍵字，直接使用固定值
   if (warningInfo.isBlacklistAlert && !warningName) {
     let actionLog = '僅紀錄 (自動草稿已關閉)';
-    if (settings.autoDraft) {
+    if (settings.assetHitAutoDraft) {
       // 建立通知草稿給 Person A
       const fixedWarningName = 'DN 與 IP 黑名單更新';
       const fixedAsset = 'DN 與 IP 黑名單';
@@ -538,7 +602,7 @@ function processSingleMessage(message, assetList, settings) {
       // 轉寄給 Person A
       sendEmailForPersonA(warningName, matchedAssetStr, message, settings);
       actionLog = '已轉寄給 Person A';
-    } else if (settings.autoDraft) {
+    } else if (settings.assetHitAutoDraft) {
       // 建立轉寄草稿給 Person A（但不自動寄出）
       createDraftForPersonA(warningName, matchedAssetStr, message, settings);
       actionLog = '已建立轉寄草稿';
@@ -556,7 +620,7 @@ function processSingleMessage(message, assetList, settings) {
       // 直接寄信回覆寄件者
       sendEmailReplyToSenderB(warningName, message, settings);
       actionLog = '已直接寄信回覆 (未使用)';
-    } else if (settings.autoDraft) {
+    } else if (settings.notInUseAutoDraft) {
       // 建立回覆草稿
       createDraftReplyToSenderB(warningName, message, settings);
       actionLog = '已建立回覆草稿';
@@ -956,6 +1020,53 @@ function sendEmailReplyToSenderB(warningName, originalMessage, settings) {
 }
 
 /**
+ * 建立「未使用」情境的回覆本文（模擬點擊者本人回信樣態）
+ * 寄信、草稿、預覽彈窗三處共用，確保內容一致。
+ * @param {string} warningName - 警訊名稱
+ * @param {string} matchedAsset - 命中資產
+ * @param {string} userDisplayName - 操作者顯示名稱
+ * @returns {string} 回覆本文
+ */
+function buildNotInUseReplyBody(warningName, matchedAsset, userDisplayName) {
+  return `
+您好，
+
+已收到漏洞預警通知：
+「${warningName}」
+
+經人工確認，相關資產「${matchedAsset}」無需處理。
+感謝通知。
+
+處理人員：${userDisplayName}
+  `.trim();
+}
+
+/**
+ * 建立「已處理」情境的回覆本文（模擬點擊者本人回信樣態）
+ * 寄信、草稿、預覽彈窗三處共用，確保內容一致。
+ * @param {string} warningName - 警訊名稱
+ * @param {string} matchedAsset - 命中資產
+ * @param {string} userDisplayName - 操作者顯示名稱
+ * @param {string} timestamp - 處理時間
+ * @returns {string} 回覆本文
+ */
+function buildProcessedReplyBody(warningName, matchedAsset, userDisplayName, timestamp) {
+  return `
+您好，
+
+關於漏洞預警通知：
+「${warningName}」
+
+經評估確認影響範圍，相關資產「${matchedAsset}」已完成必要之風險處置措施。
+
+處理人員：${userDisplayName}
+處理時間：${timestamp}
+
+如有任何問題，請隨時聯繫。
+  `.trim();
+}
+
+/**
  * 直接寄信回覆（未使用情境 - 手動操作）
  * @param {string} warningName - 警訊名稱
  * @param {string} matchedAsset - 命中資產
@@ -966,20 +1077,8 @@ function sendEmailReplyToSenderB(warningName, originalMessage, settings) {
  */
 function sendEmailForNotInUse(warningName, matchedAsset, userInfo, originalMessage, settings) {
   try {
-    const replyBody = `
-您好，
+    const replyBody = buildNotInUseReplyBody(warningName, matchedAsset, userInfo.displayName);
 
-已收到漏洞預警通知：
-「${warningName}」
-
-經人工確認，相關資產「${matchedAsset}」無需處理。
-感謝通知。
-
-處理人員：${userInfo.displayName}
-
-此郵件由系統自動發送。
-    `.trim();
-    
     // 組合回覆選項，包含 CC
     const replyOptions = {};
     if (settings.notInUseCc && settings.notInUseCc.trim()) {
@@ -1023,22 +1122,8 @@ function sendEmailForNotInUse(warningName, matchedAsset, userInfo, originalMessa
  */
 function sendEmailForProcessed(warningName, matchedAsset, userInfo, timestamp, originalMessage, settings) {
   try {
-    const replyBody = `
-您好，
+    const replyBody = buildProcessedReplyBody(warningName, matchedAsset, userInfo.displayName, timestamp);
 
-關於漏洞預警通知：
-「${warningName}」
-
-經評估確認影響範圍，相關資產「${matchedAsset}」已完成必要之風險處置措施。
-
-處理人員：${userInfo.displayName}
-處理時間：${timestamp}
-
-如有任何問題，請隨時聯繫。
-
-此郵件由系統自動發送。
-    `.trim();
-    
     // 組合回覆選項，包含 CC
     const replyOptions = {};
     if (settings.processedCc && settings.processedCc.trim()) {
@@ -1081,18 +1166,8 @@ function sendEmailForProcessed(warningName, matchedAsset, userInfo, timestamp, o
  */
 function createDraftForNotInUse(warningName, matchedAsset, userInfo, originalMessage, settings) {
   try {
-    const replyBody = `
-您好，
+    const replyBody = buildNotInUseReplyBody(warningName, matchedAsset, userInfo.displayName);
 
-已收到漏洞預警通知：
-「${warningName}」
-
-經人工確認，相關資產「${matchedAsset}」無需處理。
-感謝通知。
-
-處理人員：${userInfo.displayName}
-    `.trim();
-    
     if (originalMessage) {
       // 在原始執行緒建立回覆草稿
       originalMessage.getThread().createDraftReply(replyBody);
@@ -1125,20 +1200,8 @@ function createDraftForNotInUse(warningName, matchedAsset, userInfo, originalMes
  */
 function createDraftForProcessed(warningName, matchedAsset, userInfo, timestamp, originalMessage, settings) {
   try {
-    const replyBody = `
-您好，
+    const replyBody = buildProcessedReplyBody(warningName, matchedAsset, userInfo.displayName, timestamp);
 
-關於漏洞預警通知：
-「${warningName}」
-
-經評估確認影響範圍，相關資產「${matchedAsset}」已完成必要之風險處置措施。
-
-處理人員：${userInfo.displayName}
-處理時間：${timestamp}
-
-如有任何問題，請隨時聯繫。
-    `.trim();
-    
     if (originalMessage) {
       // 在原始執行緒建立回覆草稿
       originalMessage.getThread().createDraftReply(replyBody);
@@ -1210,11 +1273,13 @@ function testEmailPreview() {
   const settings = getSystemSettings();
   console.log('📋 當前系統設定：');
   console.log(`   - 掃描已讀信件: ${settings.scanRead ? '是' : '否'}`);
-  console.log(`   - 自動草稿: ${settings.autoDraft ? '是' : '否'}`);
   console.log(`   - Chat 通知: ${settings.chatNotify ? '是' : '否'}`);
   console.log(`   - 命中資產通知 (I2): ${settings.assetHitNotify ? '是' : '否'}`);
   console.log(`   - 未使用寄信通知 (G2): ${settings.notInUseSendEmail ? '是' : '否'}`);
   console.log(`   - 已處理寄信通知 (H2): ${settings.processedSendEmail ? '是' : '否'}`);
+  console.log(`   - 命中資產自動草稿 (N2): ${settings.assetHitAutoDraft ? '是' : '否'}`);
+  console.log(`   - 未使用自動草稿 (O2): ${settings.notInUseAutoDraft ? '是' : '否'}`);
+  console.log(`   - 已處理自動草稿 (P2): ${settings.processedAutoDraft ? '是' : '否'}`);
   console.log('');
   
   // ====== 情境 1: 資產命中 - 轉寄給 Person A ======
@@ -1322,12 +1387,12 @@ ${testData.originalEmailBody}
   console.log('='.repeat(60));
   console.log('');
   console.log('【自動掃描時】');
-  console.log(`  資產命中 → ${settings.assetHitNotify ? '轉寄給 Person A (含完整原始信件)' : (settings.autoDraft ? '建立轉寄草稿' : '僅紀錄')}`);
-  console.log(`  無命中   → ${settings.notInUseSendEmail ? '直接回覆寄件者' : (settings.autoDraft ? '建立回覆草稿' : '僅紀錄')}`);
+  console.log(`  資產命中 → ${settings.assetHitNotify ? '轉寄給 Person A (含完整原始信件)' : (settings.assetHitAutoDraft ? '建立轉寄草稿' : '僅紀錄')}`);
+  console.log(`  無命中   → ${settings.notInUseSendEmail ? '直接回覆寄件者' : (settings.notInUseAutoDraft ? '建立回覆草稿' : '僅紀錄')}`);
   console.log('');
   console.log('【手動操作時】');
-  console.log(`  點選「未使用」→ ${settings.notInUseSendEmail ? '直接寄信回覆' : (settings.autoDraft ? '建立草稿' : '僅更新狀態')}`);
-  console.log(`  點選「已處理」→ ${settings.processedSendEmail ? '直接寄信回覆' : (settings.autoDraft ? '建立草稿' : '僅更新狀態')}`);
+  console.log(`  點選「未使用」→ ${settings.notInUseSendEmail ? '直接寄信回覆' : (settings.notInUseAutoDraft ? '建立草稿' : '僅更新狀態')}`);
+  console.log(`  點選「已處理」→ ${settings.processedSendEmail ? '直接寄信回覆' : (settings.processedAutoDraft ? '建立草稿' : '僅更新狀態')}`);
   console.log('');
   console.log('='.repeat(60));
   console.log('✅ 測試完成！以上為郵件內容預覽，未實際發送任何郵件。');
@@ -1388,15 +1453,17 @@ function testShowCurrentSettings() {
   console.log('');
   console.log('【基本設定】');
   console.log(`  掃描已讀信件 (A2): ${settings.scanRead ? '✅ 是' : '❌ 否'}`);
-  console.log(`  自動草稿 (B2): ${settings.autoDraft ? '✅ 是' : '❌ 否'}`);
   console.log(`  Chat 通知 (C2): ${settings.chatNotify ? '✅ 是' : '❌ 否'}`);
   console.log('');
   console.log('【命中資產通知設定】');
   console.log(`  命中資產通知 Person A (I2): ${settings.assetHitNotify ? '✅ 是' : '❌ 否'}`);
+  console.log(`  命中資產自動草稿 (N2): ${settings.assetHitAutoDraft ? '✅ 是' : '❌ 否'}`);
   console.log('');
   console.log('【自動寄信設定】');
   console.log(`  未使用寄信通知 (G2): ${settings.notInUseSendEmail ? '✅ 是' : '❌ 否'}`);
+  console.log(`  未使用自動草稿 (O2): ${settings.notInUseAutoDraft ? '✅ 是' : '❌ 否'}`);
   console.log(`  已處理寄信通知 (H2): ${settings.processedSendEmail ? '✅ 是' : '❌ 否'}`);
+  console.log(`  已處理自動草稿 (P2): ${settings.processedAutoDraft ? '✅ 是' : '❌ 否'}`);
   console.log('');
   console.log('【郵件收件者設定】');
   console.log(`  Person A: ${CONFIG.PERSON_A_EMAIL}`);

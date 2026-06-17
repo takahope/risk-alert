@@ -933,6 +933,23 @@
       .tag-alert { background-color: #fce8e6; color: var(--danger-color); }
       .tag-safe { background-color: #e6f4ea; color: var(--success-color); }
       .tag-error { background-color: #333; color: #fff; }
+      .tag-pending { background-color: #fff3cd; color: #8a6d00; }
+
+      /* 逾期未處理（信件超過兩週未決定）標示 */
+      tr.row-overdue { background-color: #fff5f5; }
+      tr.row-overdue td:first-child { box-shadow: inset 4px 0 0 0 var(--danger-color); }
+      .mobile-card.row-overdue { border-left: 4px solid var(--danger-color); background-color: #fff5f5; }
+      .overdue-badge {
+        display: inline-block;
+        margin-left: 6px;
+        padding: 2px 6px;
+        border-radius: 8px;
+        font-size: 11px;
+        font-weight: 600;
+        color: #fff;
+        background-color: var(--danger-color);
+        white-space: nowrap;
+      }
 
       /* 可展開文字 */
       .expandable-text {
@@ -1393,6 +1410,45 @@
 
       .confirm-dialog .btn-confirm.done:hover {
         background: #43a047;
+      }
+
+      /* 使用狀態信件預覽彈窗 */
+      .confirm-dialog.usage-email-dialog {
+        max-width: 560px;
+        width: 90%;
+      }
+
+      .usage-email-body {
+        background: #f7f9fc;
+        border: 1px solid #e0e4ea;
+        border-radius: 6px;
+        padding: 14px 16px;
+        margin: 4px 0 16px;
+        max-height: 320px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-family: inherit;
+        font-size: 13px;
+        line-height: 1.6;
+        color: #333;
+      }
+
+      .confirm-dialog .dialog-actions .btn-copy {
+        padding: 10px 16px;
+        border: 1px solid var(--primary-color, #1a73e8);
+        background: #fff;
+        color: var(--primary-color, #1a73e8);
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        margin-right: auto;
+        transition: all 0.2s;
+      }
+
+      .confirm-dialog .dialog-actions .btn-copy:hover {
+        background: #eef4fe;
       }
 
       .status-bar {
@@ -1968,19 +2024,10 @@
             </div>
           </div>
 
-          <!-- 草稿與通知設定 -->
+          <!-- 通知設定 -->
           <div class="settings-section">
-            <div class="settings-section-title">📝 草稿與通知設定</div>
-            <div class="settings-row">
-              <div class="settings-info">
-                <div class="settings-label">開啟自動草稿</div>
-                <div class="settings-description">掃描到郵件時自動建立回覆草稿，需手動檢視後再發送</div>
-              </div>
-              <label class="settings-switch">
-                <input type="checkbox" id="setting-autoDraft" onchange="updateSettingValue('autoDraft')">
-                <span class="slider"></span>
-              </label>
-            </div>
+            <div class="settings-section-title">📝 通知設定</div>
+            <div class="settings-description" style="margin-bottom:12px;">自動草稿已拆分至下方三個功能組，可分別獨立開啟或關閉。</div>
             <div class="settings-row">
               <div class="settings-info">
                 <div class="settings-label">開啟 Chat 通知</div>
@@ -2007,6 +2054,16 @@
               </div>
               <label class="settings-switch">
                 <input type="checkbox" id="setting-assetHitNotify" onchange="updateSettingValue('assetHitNotify')">
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="settings-row">
+              <div class="settings-info">
+                <div class="settings-label">開啟自動草稿</div>
+                <div class="settings-description">未開啟直接轉寄時，掃描到命中資產會自動<strong>建立轉寄草稿</strong>，需手動檢視後再發送</div>
+              </div>
+              <label class="settings-switch">
+                <input type="checkbox" id="setting-assetHitAutoDraft" onchange="updateSettingValue('assetHitAutoDraft')">
                 <span class="slider"></span>
               </label>
             </div>
@@ -2045,10 +2102,20 @@
                 <span class="slider"></span>
               </label>
             </div>
+            <div class="settings-row">
+              <div class="settings-info">
+                <div class="settings-label">開啟自動草稿</div>
+                <div class="settings-description">未開啟直接寄信時，標記為「未使用」會自動<strong>建立回覆草稿</strong>，需手動檢視後再發送</div>
+              </div>
+              <label class="settings-switch">
+                <input type="checkbox" id="setting-notInUseAutoDraft" onchange="updateSettingValue('notInUseAutoDraft')">
+                <span class="slider"></span>
+              </label>
+            </div>
             <!-- CC 副本收件人 -->
             <div class="settings-cc-row">
               <div class="settings-cc-label">📧 CC 副本收件人</div>
-              <input type="text" class="settings-cc-input" id="setting-notInUseCc" 
+              <input type="text" class="settings-cc-input" id="setting-notInUseCc"
                      placeholder="輸入郵件地址，多個以逗號分隔"
                      onblur="updateCcValue('notInUseCc')">
               <div class="settings-cc-hint">回覆「未使用」時同時副本給其他人</div>
@@ -2068,10 +2135,20 @@
                 <span class="slider"></span>
               </label>
             </div>
+            <div class="settings-row">
+              <div class="settings-info">
+                <div class="settings-label">開啟自動草稿</div>
+                <div class="settings-description">未開啟直接寄信時，標記為「已處理」會自動<strong>建立回覆草稿</strong>，需手動檢視後再發送</div>
+              </div>
+              <label class="settings-switch">
+                <input type="checkbox" id="setting-processedAutoDraft" onchange="updateSettingValue('processedAutoDraft')">
+                <span class="slider"></span>
+              </label>
+            </div>
             <!-- CC 副本收件人 -->
             <div class="settings-cc-row">
               <div class="settings-cc-label">📧 CC 副本收件人</div>
-              <input type="text" class="settings-cc-input" id="setting-processedCc" 
+              <input type="text" class="settings-cc-input" id="setting-processedCc"
                      placeholder="輸入郵件地址，多個以逗號分隔"
                      onblur="updateCcValue('processedCc')">
               <div class="settings-cc-hint">回覆「已處理」時同時副本給其他人</div>
@@ -2226,6 +2303,7 @@
             <div class="status-checkboxes">
               <label><input type="checkbox" id="filter-pending" onchange="applyFilters()"> ⏳ 僅顯示待處理</label>
               <label><input type="checkbox" id="filter-not-in-use" onchange="applyFilters()"> 🚫 僅顯示未使用</label>
+              <label><input type="checkbox" id="filter-overdue" onchange="applyFilters()"> ⚠️ 僅顯示逾期(超過兩週)未處理</label>
             </div>
           </div>
 
@@ -2388,8 +2466,14 @@
         return row ? Number(row[10]) : null;
       }
 
+      // 以「操作者(operator / row[9])」是否有值，作為「人工是否已做出決定」的唯一判準。
+      // 掃描流程從不寫入 operator，故未命中列(operator 空)會保留按鈕、顯示「待確認」。
+      function isResolved(row) {
+        return Boolean(row && row[9]);
+      }
+
       function hasUsageStatus(row) {
-        return Boolean(row && row[8]);
+        return isResolved(row);
       }
 
       function isPendingUsageDecision(row) {
@@ -2397,7 +2481,23 @@
       }
 
       function isRowSelectable(row) {
-        return Boolean(getSheetRow(row)) && !hasUsageStatus(row);
+        return Boolean(getSheetRow(row)) && !isResolved(row);
+      }
+
+      // 逾期判定：以信件時間(row[5])為準，尚未人工決定且超過兩週(14 天)
+      const OVERDUE_THRESHOLD_MS = 14 * 24 * 60 * 60 * 1000;
+      function parseEmailDate(emailDate) {
+        if (!emailDate) return null;
+        // 將 "yyyy-MM-dd HH:mm:ss" 的空白換成 T，提升跨瀏覽器解析相容性
+        const parsed = new Date(String(emailDate).trim().replace(' ', 'T'));
+        return isNaN(parsed.getTime()) ? null : parsed;
+      }
+
+      function isOverdue(row) {
+        if (!isPendingUsageDecision(row)) return false;
+        const parsed = parseEmailDate(row[5]);
+        if (!parsed) return false;
+        return (Date.now() - parsed.getTime()) > OVERDUE_THRESHOLD_MS;
       }
 
       function getDisplayData() {
@@ -2564,6 +2664,7 @@
         const assetFilter = document.getElementById('filter-asset').value;
         const onlyPending = document.getElementById('filter-pending').checked;
         const onlyNotInUse = document.getElementById('filter-not-in-use').checked;
+        const onlyOverdue = document.getElementById('filter-overdue').checked;
         const searchKeyword = document.getElementById('filter-search').value.trim().toLowerCase();
 
         filteredData = allData.filter(row => {
@@ -2577,8 +2678,11 @@
           // 待處理篩選 (僅顯示仍需使用者操作使用狀態的項目)
           if (onlyPending && !isPendingUsageDecision(row)) return false;
 
-          // 未使用篩選 (僅顯示有命中且標記為未使用的)
-          if (onlyNotInUse && notInUse !== '未使用') return false;
+          // 未使用篩選 (僅顯示已由人工標記為未使用的)
+          if (onlyNotInUse && !(isResolved(row) && notInUse === '未使用')) return false;
+
+          // 逾期篩選 (僅顯示信件超過兩週且尚未人工決定的)
+          if (onlyOverdue && !isOverdue(row)) return false;
 
           // 資產篩選
           if (assetFilter && asset !== assetFilter) return false;
@@ -2619,6 +2723,7 @@
         document.getElementById('filter-asset').value = '';
         document.getElementById('filter-pending').checked = false;
         document.getElementById('filter-not-in-use').checked = false;
+        document.getElementById('filter-overdue').checked = false;
         document.getElementById('filter-search').value = '';
         
         document.querySelectorAll('.quick-filters .btn').forEach(btn => {
@@ -2636,8 +2741,8 @@
         const alert = filteredData.filter(r => r[1] === 'ALERT').length;
         const safe = filteredData.filter(r => r[1] === 'SAFE').length;
         const error = filteredData.filter(r => r[1] === 'ERROR').length;
-        // 待處理：狀態為 ALERT 且使用狀態為空（非「未使用」）
-        const pending = filteredData.filter(r => r[1] === 'ALERT' && (!r[8] || r[8] === '')).length;
+        // 待處理：尚未由人工決定（含命中「風險」與未命中「待確認」）的項目
+        const pending = filteredData.filter(r => isPendingUsageDecision(r)).length;
 
         document.getElementById('stat-total').textContent = total;
         document.getElementById('stat-alert').textContent = alert;
@@ -2729,6 +2834,12 @@
           let statusText = '安全';
           if (status === 'ALERT') { tagClass = 'tag-alert'; statusText = '⚠️ 風險'; }
           else if (status === 'ERROR') { tagClass = 'tag-error'; statusText = '錯誤'; }
+          else if (!isResolved(row)) { tagClass = 'tag-pending'; statusText = '⏳ 待確認'; }
+
+          const overdue = isOverdue(row);
+          const overdueBadge = overdue
+            ? '<span class="overdue-badge" title="信件超過兩週未處理">⚠️ 逾期未處理</span>'
+            : '';
 
           const dataIndex = filteredData.indexOf(row);
           const globalIndex = pageSize === 'all' 
@@ -2749,17 +2860,18 @@
             ? `<input type="checkbox" class="row-select-checkbox" onchange="toggleRowSelection(${sheetRow}, this.checked)" ${isSelected ? 'checked' : ''} aria-label="選取第 ${globalIndex} 筆">`
             : '<span class="row-select-placeholder" title="此筆已完成處理"></span>';
           let usageStatus = '';
-          if (notInUse === '未使用') {
+          if (isResolved(row) && notInUse === '未使用') {
             usageStatus = '<span class="tag" style="background:#fff3e0; color:#e65100;">🚫 未使用</span>';
-          } else if (notInUse === '已處理') {
+          } else if (isResolved(row) && notInUse === '已處理') {
             usageStatus = '<span class="tag" style="background:#e6f4ea; color:#188038;">✅ 已處理</span>';
           } else {
+            // 未經人工決定（含未命中列）一律保留按鈕，讓使用者自行判斷
             usageStatus = `
               <div class="usage-btn-group">
-                <button class="usage-btn usage-btn-notuse" onclick="confirmUsageStatus(${dataIndex}, '未使用')" title="標記此資產為未使用，狀態將變更為安全">
+                <button class="usage-btn usage-btn-notuse" onclick="confirmUsageStatus(${dataIndex}, '未使用')" title="標記此警訊為未使用">
                   <span class="btn-icon">🚫</span>未使用
                 </button>
-                <button class="usage-btn usage-btn-done" onclick="confirmUsageStatus(${dataIndex}, '已處理')" title="標記此警訊已處理完畢，狀態將變更為安全">
+                <button class="usage-btn usage-btn-done" onclick="confirmUsageStatus(${dataIndex}, '已處理')" title="標記此警訊已處理完畢">
                   <span class="btn-icon">✅</span>已處理
                 </button>
               </div>
@@ -2782,10 +2894,11 @@
             : (warningName ? `<span>${warningName}</span> ${emailLink}` : '-');
 
           const tr = document.createElement('tr');
+          if (overdue) tr.className = 'row-overdue';
           tr.innerHTML = `
             <td class="row-select-cell">${selectionCell}</td>
             <td>${globalIndex}</td>
-            <td>${emailDate || '-'}</td>
+            <td>${emailDate || '-'}${overdueBadge}</td>
             <td><span class="tag ${tagClass}">${statusText}</span></td>
             <td>${warningDisplay}</td>
             <td><strong>${asset}</strong><br><small style="color:#666">${action}</small></td>
@@ -2801,9 +2914,9 @@
               </label>`
             : '<span class="row-select-placeholder" title="此筆已完成處理"></span>';
           let mobileUsageStatus = '';
-          if (notInUse === '未使用') {
+          if (isResolved(row) && notInUse === '未使用') {
             mobileUsageStatus = '<span class="mobile-usage-status" style="background:#fff3e0; color:#e65100; padding:4px 8px; border-radius:4px; font-size:12px;">🚫 未使用</span>';
-          } else if (notInUse === '已處理') {
+          } else if (isResolved(row) && notInUse === '已處理') {
             mobileUsageStatus = '<span class="mobile-usage-status" style="background:#e6f4ea; color:#188038; padding:4px 8px; border-radius:4px; font-size:12px;">✅ 已處理</span>';
           } else {
             mobileUsageStatus = `
@@ -2823,13 +2936,14 @@
           const cardId = `card-${globalIndex}`;
 
           const card = document.createElement('div');
-          card.className = 'mobile-card';
+          card.className = overdue ? 'mobile-card row-overdue' : 'mobile-card';
           card.id = cardId;
           card.innerHTML = `
             <div class="mobile-card-header">
               <div class="mobile-card-header-left">
                 ${mobileSelectControl}
                 <span class="tag ${tagClass}">${statusText}</span>
+                ${overdueBadge}
               </div>
               <span class="mobile-card-date">${emailDate ? emailDate.split(' ')[0] : '-'}</span>
             </div>
@@ -3007,18 +3121,112 @@
           return;
         }
 
-        const warningName = row[2] || '此警訊';
-        const asset = row[3] || '';
-        
+        const sheetRow = getSheetRow(row);
+        if (!sheetRow) {
+          alert('找不到對應的工作表列號');
+          return;
+        }
+
+        // 先向後端取得「將寄出 / 將建立草稿 / 供手動複製」的信件內容預覽，再彈窗讓使用者確認
+        google.script.run
+          .withSuccessHandler(function(preview) {
+            if (!preview || !preview.success) {
+              alert('無法取得信件預覽: ' + ((preview && preview.error) || '未知錯誤'));
+              return;
+            }
+            openUsageEmailModal(dataIndex, usageStatus, preview);
+          })
+          .withFailureHandler(function(err) {
+            alert('無法取得信件預覽: ' + err.message);
+          })
+          .previewUsageStatusEmail(sheetRow, usageStatus);
+      }
+
+      // 依後端回傳的 mode 顯示信件內容彈窗：
+      //  - send : 將以部署者信箱寄出（需求 6）
+      //  - draft: 將在執行者信箱建立草稿（需求 7）
+      //  - none : 未開啟自動功能，提供現成回覆內容供一鍵複製（需求 5）
+      function openUsageEmailModal(dataIndex, usageStatus, preview) {
         const isNotUse = usageStatus === '未使用';
-        const icon = isNotUse ? '🚫' : '✅';
-        const title = isNotUse ? '確認標記為未使用' : '確認標記為已處理';
-        const message = isNotUse 
-          ? `您即將將此警訊標記為「未使用」，表示該資產無需處理。<br><br><strong>警訊：</strong>${warningName.substring(0, 50)}${warningName.length > 50 ? '...' : ''}<br><strong>資產：</strong>${asset || 'N/A'}`
-          : `您即將將此警訊標記為「已處理」，表示相關風險已處置完畢。<br><br><strong>警訊：</strong>${warningName.substring(0, 50)}${warningName.length > 50 ? '...' : ''}<br><strong>資產：</strong>${asset || 'N/A'}`;
-        buildConfirmDialog(`${icon} ${title}`, message, `${icon} 確認${usageStatus}`, isNotUse ? 'notuse' : 'done', function(confirmBtn, closeOverlay) {
-          executeUsageStatus(dataIndex, usageStatus, confirmBtn, closeOverlay);
+        const confirmClass = isNotUse ? 'notuse' : 'done';
+
+        let title, intro, confirmLabel;
+        if (preview.mode === 'send') {
+          title = '📧 確認寄出信件';
+          intro = '系統將以<strong>部署者信箱</strong>回覆原始信件（內容已模擬您本人的回信樣態）。確認後將<strong>立即寄出</strong>：';
+          confirmLabel = `✉️ 確認寄出並標記${usageStatus}`;
+        } else if (preview.mode === 'draft') {
+          title = '📝 確認建立草稿';
+          intro = '系統將在<strong>執行者信箱</strong>的原信件討論串建立回覆草稿（內容已模擬您本人的回信樣態）。確認後將<strong>建立草稿</strong>：';
+          confirmLabel = `📝 確認建立草稿並標記${usageStatus}`;
+        } else {
+          title = '📋 回覆內容（請手動複製寄出）';
+          intro = '目前未開啟自動寄信與自動草稿。以下是為您準備好的回覆內容，可<strong>一鍵複製</strong>後自行寄出。確認後僅會更新使用狀態：';
+          confirmLabel = `✅ 確認標記為${usageStatus}`;
+        }
+
+        const overlay = document.createElement('div');
+        overlay.className = 'confirm-overlay';
+        overlay.innerHTML = `
+          <div class="confirm-dialog usage-email-dialog">
+            <h4>${title}</h4>
+            <p>${intro}</p>
+            <pre class="usage-email-body" id="usage-email-body"></pre>
+            <div class="dialog-actions">
+              <button class="btn-copy" type="button">📋 複製</button>
+              <button class="btn-cancel" type="button">取消</button>
+              <button class="btn-confirm ${confirmClass}" type="button">${confirmLabel}</button>
+            </div>
+          </div>
+        `;
+        // 以 textContent 寫入內文，避免警訊文字中的 HTML 字元造成注入或破版
+        overlay.querySelector('#usage-email-body').textContent = preview.body || '';
+
+        const closeOverlay = () => {
+          overlay.remove();
+          document.removeEventListener('keydown', escHandler);
+        };
+        const escHandler = function(e) {
+          if (e.key === 'Escape') closeOverlay();
+        };
+        overlay.addEventListener('click', function(e) {
+          if (e.target === overlay) closeOverlay();
         });
+        overlay.querySelector('.btn-cancel').addEventListener('click', closeOverlay);
+
+        overlay.querySelector('.btn-copy').addEventListener('click', function() {
+          const text = preview.body || '';
+          const btn = this;
+          const done = () => {
+            btn.textContent = '✅ 已複製';
+            setTimeout(() => { btn.textContent = '📋 複製'; }, 2000);
+          };
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+          } else {
+            fallbackCopy(text, done);
+          }
+        });
+
+        overlay.querySelector('.btn-confirm').addEventListener('click', function() {
+          executeUsageStatus(dataIndex, usageStatus, this, closeOverlay);
+        });
+
+        document.addEventListener('keydown', escHandler);
+        document.body.appendChild(overlay);
+      }
+
+      // navigator.clipboard 不可用時的複製備援（如非 HTTPS 或舊瀏覽器）
+      function fallbackCopy(text, onDone) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); } catch (e) { /* 忽略 */ }
+        document.body.removeChild(ta);
+        if (onDone) onDone();
       }
 
       function confirmBatchUsageStatus(usageStatus) {
@@ -3062,6 +3270,8 @@
                 showToast('✅ 已更新狀態並建立草稿');
               } else if (result.emailSent) {
                 showToast('✅ 已更新狀態並發送通知');
+              } else {
+                showToast('✅ 已更新使用狀態');
               }
             } else {
               alert('更新失敗: ' + (result.error || '未知錯誤'));
@@ -3135,8 +3345,12 @@
           let statusText = '安全';
           if (status === 'ALERT') statusText = '風險';
           else if (status === 'ERROR') statusText = '錯誤';
-          
-          return [index + 1, emailDate || '-', statusText, warningName, asset, action, hasReply || '-', notInUse || '-', operator || '-'];
+          else if (!isResolved(row)) statusText = '待確認';
+
+          // 使用狀態僅在已由人工決定時輸出標記，否則視為待處理
+          const usageText = (isResolved(row) && notInUse) ? notInUse : (isOverdue(row) ? '逾期未處理' : '待處理');
+
+          return [index + 1, emailDate || '-', statusText, warningName, asset, action, hasReply || '-', usageText, operator || '-'];
         });
 
         // 建立工作表
@@ -3211,11 +3425,14 @@
           console.log('載入設定:', settings); // Debug log
           
           document.getElementById('setting-scanRead').checked = settings.scanRead;
-          document.getElementById('setting-autoDraft').checked = settings.autoDraft;
           document.getElementById('setting-chatNotify').checked = settings.chatNotify;
           document.getElementById('setting-notInUseSendEmail').checked = settings.notInUseSendEmail;
           document.getElementById('setting-processedSendEmail').checked = settings.processedSendEmail;
           document.getElementById('setting-assetHitNotify').checked = settings.assetHitNotify;
+          // 三個功能組各自獨立的自動草稿開關
+          document.getElementById('setting-assetHitAutoDraft').checked = settings.assetHitAutoDraft;
+          document.getElementById('setting-notInUseAutoDraft').checked = settings.notInUseAutoDraft;
+          document.getElementById('setting-processedAutoDraft').checked = settings.processedAutoDraft;
           
           // 載入主要收件人設定
           console.log('主要收件人:', settings.assetHitRecipients); // Debug log
