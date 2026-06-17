@@ -13,7 +13,13 @@ This is a **Google Apps Script (GAS)** web application that automates security v
 |------|---------|
 | `code.js` | All backend logic: email processing, asset matching, logging, `doGet()`, and all `google.script.run` API functions |
 | `Dashboard.html` | Single-page dashboard UI (HTML/CSS/JS embedded together); communicates with backend via `google.script.run` |
-| `env.js` | `CONFIG` object with environment-specific values (spreadsheet IDs, email addresses, webhook URLs). **Never commit real values.** |
+| `env.js` | `CONFIG` object with environment-specific values (spreadsheet IDs, email addresses, webhook URLs, `ACTION_SECRET`). **Never commit real values.** |
+
+### Interactive (dynamic) confirmation email
+- `doGet(e)` is **parameter-routed**: when `e.parameter.action === 'usageReply'` it runs `handleEmailButtonReply()` (replies to the original sender as the deployer, simulating the info-group member, then updates SystemLogs) and returns an HtmlService result page; otherwise it serves the Dashboard.
+- Button links are HTML `<a>` buttons whose URLs carry `status`, `msgId`, `op`, `token` (HMAC-SHA256 over `msgId|status` via `CONFIG.ACTION_SECRET`), and optional `test=1`.
+- `sendTestInteractiveEmail()` + `handleTestButtonReply()` provide an end-to-end test: a test email's button click sends a *simulated* reply to `PERSON_A_EMAIL` instead of a real sender.
+- **Deployment:** redeploy the Web App with Execute as **Me** and access **Anyone with a Google account**; set `CONFIG.ACTION_SECRET`. Button URLs are built at runtime via `ScriptApp.getService().getUrl()`.
 
 ### Data Flow
 1. `processIncomingEmails()` (time-driven trigger) → scans Gmail for matching sender + subject keywords
@@ -27,6 +33,7 @@ This is a **Google Apps Script (GAS)** web application that automates security v
   - A2: scan read emails, B2: legacy auto-draft (deprecated, replaced by N/O/P), C2: chat notify, G2: notInUse email, H2: processed email, I2: asset hit notify
   - J: assetHitCc, K: notInUseCc, L: processedCc, M: assetHitRecipients
   - N2: assetHitAutoDraft, O2: notInUseAutoDraft, P2: processedAutoDraft (per-function auto-draft toggles)
+  - Q2: confirmForwardNotify (always send an interactive HTML confirmation email to the primary recipient regardless of asset hit; replaces the per-hit forward/draft logic when on)
 - **SystemLogs**: Execution history; column G stores Gmail Message ID for deduplication; `sheetRow` values passed from frontend are actual 1-based spreadsheet row numbers (including header row)
 
 ## Key Patterns

@@ -22,6 +22,9 @@ const CONFIG = {
   DATA_COLUMN_INDEX: 0, 
   
   GOOGLE_CHAT_WEBHOOK_URL: 'https://chat.googleapis.coWEfRqtgS9oggV4qis8',
+
+  // [新增] 互動信按鈕連結的 HMAC 簽章金鑰，請替換為一段隨機字串（勿外洩、勿提交真實值）
+  ACTION_SECRET: 'REPLACE_WITH_RANDOM_SECRET',
   
   // [修改] 搜尋語法：支援多個寄件者和多個標題關鍵字
   getSearchQuery: function() {

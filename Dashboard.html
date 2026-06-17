@@ -378,6 +378,21 @@
         margin-top: 4px;
       }
 
+      .settings-test-btn {
+        padding: 10px 16px;
+        border: 1px solid var(--primary-color, #1a73e8);
+        background: #fff;
+        color: var(--primary-color, #1a73e8);
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        transition: all 0.2s;
+      }
+
+      .settings-test-btn:hover { background: #eef4fe; }
+      .settings-test-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
       .settings-switch {
         position: relative;
         display: inline-block;
@@ -2078,10 +2093,29 @@
             <!-- CC 副本收件人 -->
             <div class="settings-cc-row">
               <div class="settings-cc-label">📧 CC 副本收件人</div>
-              <input type="text" class="settings-cc-input" id="setting-assetHitCc" 
+              <input type="text" class="settings-cc-input" id="setting-assetHitCc"
                      placeholder="輸入郵件地址，多個以逗號分隔"
                      onblur="updateCcValue('assetHitCc')">
               <div class="settings-cc-hint">轉寄時同時副本給其他人</div>
+            </div>
+
+            <!-- 一律轉寄資訊組確認（互動信） -->
+            <div class="settings-row">
+              <div class="settings-info">
+                <div class="settings-label">一律轉寄資訊組確認（互動信）</div>
+                <div class="settings-description">開啟後，<strong>不論是否命中</strong>，掃描到符合信件一律寄一封「可在信中點選未使用/已處理」的互動確認信給上方主要收件人(+CC)。資訊組同仁點擊後，系統會以其名義回覆原始寄件者。<strong>開啟此項時將取代上述命中轉寄/草稿邏輯。</strong></div>
+              </div>
+              <label class="settings-switch">
+                <input type="checkbox" id="setting-confirmForwardNotify" onchange="updateSettingValue('confirmForwardNotify')">
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <!-- 寄送互動測試信 -->
+            <div class="settings-cc-row">
+              <div class="settings-cc-label">🧪 互動信測試</div>
+              <button type="button" class="settings-test-btn" onclick="sendInteractiveTest(this)">📧 寄送互動測試信到主要收件人</button>
+              <div class="settings-cc-hint">寄一封互動測試信到上方主要收件人；點擊信中按鈕後，系統會把「將回覆給原始寄件者的內容」模擬寄到 PERSON_A_EMAIL 供確認。</div>
             </div>
           </div>
 
@@ -3433,6 +3467,8 @@
           document.getElementById('setting-assetHitAutoDraft').checked = settings.assetHitAutoDraft;
           document.getElementById('setting-notInUseAutoDraft').checked = settings.notInUseAutoDraft;
           document.getElementById('setting-processedAutoDraft').checked = settings.processedAutoDraft;
+          // 一律轉寄資訊組確認（互動信）
+          document.getElementById('setting-confirmForwardNotify').checked = settings.confirmForwardNotify;
           
           // 載入主要收件人設定
           console.log('主要收件人:', settings.assetHitRecipients); // Debug log
@@ -3499,6 +3535,29 @@
         }).withFailureHandler(function(error) {
           showSettingsToast('更新失敗: ' + error.message);
         }).updateAssetHitRecipients(recipients);
+      }
+
+      // 寄送互動測試信到主要收件人
+      function sendInteractiveTest(btn) {
+        const original = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '⏳ 寄送中...';
+        google.script.run
+          .withSuccessHandler(function(result) {
+            btn.disabled = false;
+            btn.textContent = original;
+            if (result && result.success) {
+              showSettingsToast('✅ 已寄出測試信到 ' + result.recipient);
+            } else {
+              showSettingsToast('❌ 寄送失敗: ' + ((result && result.error) || '未知錯誤'));
+            }
+          })
+          .withFailureHandler(function(error) {
+            btn.disabled = false;
+            btn.textContent = original;
+            showSettingsToast('❌ 寄送失敗: ' + error.message);
+          })
+          .sendTestInteractiveEmail();
       }
 
       function updateSettingBadge(key, isEnabled) {

@@ -8,11 +8,362 @@
 // 2. 網頁應用程式與設定 API (Web App & Settings)
 // ==========================================
 
-function doGet() {
+function doGet(e) {
+  // 依 e.parameter 路由：互動信按鈕點擊 → 執行回信動作並回傳確認頁；否則顯示儀表板
+  if (e && e.parameter && e.parameter.action === 'usageReply') {
+    return handleEmailButtonReply(e.parameter);
+  }
   return HtmlService.createHtmlOutputFromFile('Dashboard')
     .setTitle('資安預警即時儀表板')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+}
+
+// ==========================================
+// 2.1 互動式（動態）確認郵件 - Web App 動作處理
+// ==========================================
+
+/**
+ * 取得本 Web App 的 /exec 網址，用於組合互動信按鈕連結
+ */
+function getWebAppUrl() {
+  return ScriptApp.getService().getUrl();
+}
+
+/**
+ * 以 HMAC-SHA256 + Base64 對 payload 簽章，防止偽造按鈕連結參數
+ * @param {string} payload - 例如 `${msgId}|${status}`
+ * @returns {string} URL-safe Base64 token
+ */
+function makeActionToken(payload) {
+  const raw = Utilities.computeHmacSha256Signature(payload, CONFIG.ACTION_SECRET || '');
+  return Utilities.base64EncodeWebSafe(raw);
+}
+
+/**
+ * 驗證 token 是否與 payload 相符
+ */
+function verifyActionToken(payload, token) {
+  if (!token) return false;
+  return makeActionToken(payload) === token;
+}
+
+/**
+ * 透過 Gmail Message ID 在 SystemLogs 找到對應列（G 欄為 Message ID）
+ * @param {string} msgId
+ * @returns {{row:number, data:string[]}|null}
+ */
+function findLogRowByMessageId(msgId) {
+  if (!msgId) return null;
+  const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.LOG_SHEET_NAME);
+  if (!sheet) return null;
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return null;
+  // 一次讀取 A:L，G 欄（index 6）為 Message ID
+  const values = sheet.getRange(2, 1, lastRow - 1, 12).getDisplayValues();
+  for (let i = 0; i < values.length; i++) {
+    if (String(values[i][6]) === String(msgId)) {
+      return { row: i + 2, data: values[i] };
+    }
+  }
+  return null;
+}
+
+/**
+ * 產生互動信的確認結果頁（HtmlService）
+ */
+function renderActionResultPage(title, message, isError) {
+  const color = isError ? '#c5221f' : '#188038';
+  const icon = isError ? '⚠️' : '✅';
+  const html = `
+    <!DOCTYPE html><html><head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+      body { font-family: -apple-system, "Microsoft JhengHei", sans-serif; background:#f5f7fa; margin:0; padding:40px 16px; }
+      .card { max-width:480px; margin:0 auto; background:#fff; border-radius:12px; padding:32px 28px; box-shadow:0 4px 16px rgba(0,0,0,0.08); text-align:center; }
+      .icon { font-size:48px; }
+      h2 { color:${color}; margin:12px 0 8px; }
+      p { color:#444; line-height:1.7; white-space:pre-wrap; word-break:break-word; }
+    </style></head><body>
+      <div class="card">
+        <div class="icon">${icon}</div>
+        <h2>${title}</h2>
+        <p>${message}</p>
+        <p style="color:#999; font-size:13px;">您可以關閉此視窗。</p>
+      </div>
+    </body></html>`;
+  return HtmlService.createHtmlOutput(html).setTitle(title);
+}
+
+/**
+ * 處理互動信按鈕點擊：以部署者身分將原始信件回覆給原始寄件者（模擬資訊組同仁回覆），
+ * 並更新 SystemLogs 該列使用狀態。
+ * @param {Object} params - e.parameter（action, status, msgId, op, token, test）
+ */
+function handleEmailButtonReply(params) {
+  try {
+    const status = params.status;
+    const msgId = params.msgId || '';
+    const op = params.op || '';
+
+    if (status !== '未使用' && status !== '已處理') {
+      return renderActionResultPage('連結無效', '無法辨識的動作參數。', true);
+    }
+
+    // 測試信走測試分支
+    const payload = params.test === '1' ? `TEST|${status}` : `${msgId}|${status}`;
+    if (!verifyActionToken(payload, params.token)) {
+      return renderActionResultPage('驗證失敗', '此連結的簽章不正確或已被竄改，動作已拒絕。', true);
+    }
+
+    if (params.test === '1') {
+      return handleTestButtonReply(params);
+    }
+
+    // 正式流程
+    const logRow = findLogRowByMessageId(msgId);
+    if (!logRow) {
+      return renderActionResultPage('找不到紀錄', '找不到對應的警訊紀錄，可能已被刪除。', true);
+    }
+    const warningName = logRow.data[2];   // C 欄
+    const matchedAsset = logRow.data[3];  // D 欄
+
+    const originalMessage = findMessageById(msgId);
+    if (!originalMessage) {
+      return renderActionResultPage('找不到原始信件', '無法在信箱中找到原始信件，可能已被刪除或封存。', true);
+    }
+
+    // 以主要收件人姓名模擬資訊組署名
+    const opInfo = op ? getUserDisplayName(op) : { displayName: '資訊組同仁' };
+    const opDisplayName = opInfo.displayName || op || '資訊組同仁';
+
+    let replyBody;
+    if (status === '未使用') {
+      replyBody = buildNotInUseReplyBody(warningName, matchedAsset, opDisplayName);
+    } else {
+      const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
+      replyBody = buildProcessedReplyBody(warningName, matchedAsset, opDisplayName, timestamp);
+    }
+
+    // 回覆原始寄件者（模擬資訊組回覆）
+    originalMessage.reply(replyBody);
+
+    // 更新 SystemLogs 該列使用狀態與操作者
+    const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.LOG_SHEET_NAME);
+    markLogRowUsage(sheet, logRow.row, status, op || '互動信回覆');
+
+    if (getSystemSettings().chatNotify) {
+      sendToChat(`📨 **[互動信回覆] 已回覆原始寄件者**\n警訊：${warningName}\n動作：${status}\n操作者：${opDisplayName}`);
+    }
+
+    return renderActionResultPage(
+      `已回覆：${status}`,
+      `已將「${warningName}」以「${status}」回覆給原始寄件者。\n操作者：${opDisplayName}`,
+      false
+    );
+  } catch (err) {
+    console.error('處理互動信按鈕失敗: ' + err.message);
+    return renderActionResultPage('處理失敗', '系統處理時發生錯誤：' + err.message, true);
+  }
+}
+
+/**
+ * 處理測試互動信按鈕點擊：不回覆真實原始寄件者，而是把「將回覆給原始寄件者的內容」
+ * 模擬寄一封到 PERSON_A_EMAIL，方便端到端驗證。
+ */
+function handleTestButtonReply(params) {
+  try {
+    const status = params.status;
+    const op = params.op || CONFIG.PERSON_A_EMAIL;
+    const opInfo = getUserDisplayName(op);
+    const opDisplayName = opInfo.displayName || op;
+
+    const sampleWarning = '【測試】Apache HTTP Server 多個安全漏洞 (CVE-2024-TEST)';
+    const sampleAsset = 'Apache HTTP Server';
+
+    let replyBody;
+    if (status === '未使用') {
+      replyBody = buildNotInUseReplyBody(sampleWarning, sampleAsset, opDisplayName);
+    } else {
+      const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
+      replyBody = buildProcessedReplyBody(sampleWarning, sampleAsset, opDisplayName, timestamp);
+    }
+
+    const subject = `[測試回覆模擬] 資訊組點選「${status}」將回覆給原始寄件者的內容`;
+    const body = `這是一封「測試模擬」郵件（非正式回覆）。
+
+資訊組同仁（模擬：${opDisplayName}）在測試互動信中點了「${status}」。
+在正式流程中，系統會以下列內容回覆原始寄件者：
+
+----------（將回覆給原始寄件者的內容）----------
+${replyBody}
+------------------------------------------------
+
+若以上內容正確，表示互動信回覆流程運作正常。`;
+
+    GmailApp.sendEmail(CONFIG.PERSON_A_EMAIL, subject, body);
+
+    return renderActionResultPage(
+      `測試成功：${status}`,
+      `已將模擬回覆內容寄到 ${CONFIG.PERSON_A_EMAIL}，請至該信箱確認回覆樣態。`,
+      false
+    );
+  } catch (err) {
+    console.error('處理測試互動信按鈕失敗: ' + err.message);
+    return renderActionResultPage('測試失敗', '系統處理時發生錯誤：' + err.message, true);
+  }
+}
+
+/**
+ * 後端 HTML 跳脫（避免警訊/原信內容破壞郵件 HTML）
+ */
+function escapeHtmlForEmail(text) {
+  return String(text == null ? '' : text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/**
+ * 組合單顆互動按鈕連結（Gmail 相容的 <a> 樣式按鈕）
+ */
+function buildActionButton(label, color, status, msgId, op, isTest) {
+  const payload = isTest ? `TEST|${status}` : `${msgId}|${status}`;
+  const token = makeActionToken(payload);
+  const params = [
+    'action=usageReply',
+    'status=' + encodeURIComponent(status),
+    'msgId=' + encodeURIComponent(msgId),
+    'op=' + encodeURIComponent(op || ''),
+    'token=' + encodeURIComponent(token)
+  ];
+  if (isTest) params.push('test=1');
+  const url = getWebAppUrl() + '?' + params.join('&');
+  return `<a href="${url}" target="_blank" style="display:inline-block; margin:6px 8px; padding:12px 28px; background:${color}; color:#ffffff; text-decoration:none; border-radius:6px; font-size:15px; font-weight:bold;">${label}</a>`;
+}
+
+/**
+ * 產生互動確認信的 HTML 內容
+ * @param {Object} opts - { warningName, matchedAsset, originalMessage, op, isTest }
+ */
+function buildInteractiveNotifyHtml(opts) {
+  const warningName = escapeHtmlForEmail(opts.warningName);
+  const assetLine = opts.matchedAsset
+    ? `命中資產：<strong>${escapeHtmlForEmail(opts.matchedAsset)}</strong>`
+    : '命中資產：<strong>無命中（一律轉寄確認）</strong>';
+
+  let from = '', date = '', subject = '', originalBody = '';
+  if (opts.originalMessage) {
+    from = escapeHtmlForEmail(opts.originalMessage.getFrom());
+    date = escapeHtmlForEmail(opts.originalMessage.getDate());
+    subject = escapeHtmlForEmail(opts.originalMessage.getSubject());
+    originalBody = escapeHtmlForEmail(opts.originalMessage.getPlainBody());
+  } else {
+    subject = warningName;
+    originalBody = '（測試信，無真實原始信件內容）';
+  }
+
+  const msgId = opts.originalMessage ? opts.originalMessage.getId() : '';
+  const notUseBtn = buildActionButton('🚫 未使用', '#e8710a', '未使用', msgId, opts.op, opts.isTest);
+  const doneBtn = buildActionButton('✅ 已處理', '#188038', '已處理', msgId, opts.op, opts.isTest);
+
+  const testBanner = opts.isTest
+    ? `<div style="background:#fff3cd; color:#8a6d00; padding:10px 14px; border-radius:6px; margin-bottom:16px; font-size:14px;">🧪 這是一封<strong>測試互動信</strong>。點擊下方按鈕後，系統會將「將回覆給原始寄件者的內容」模擬寄到 ${escapeHtmlForEmail(CONFIG.PERSON_A_EMAIL)}，不會回覆真實寄件者。</div>`
+    : '';
+
+  return `
+  <div style="font-family:-apple-system,'Microsoft JhengHei',sans-serif; max-width:640px; margin:0 auto; color:#333;">
+    ${testBanner}
+    <h2 style="color:#1a73e8; font-size:20px;">資安預警 - 請確認此資產處理狀態</h2>
+    <p style="line-height:1.7;">親愛的資訊組同仁您好，系統偵測到以下漏洞預警，請於本信中直接確認此資產的處理狀態。點擊按鈕後，系統會以您的名義回覆原始寄件者。</p>
+    <table style="width:100%; border-collapse:collapse; margin:16px 0; font-size:14px;">
+      <tr><td style="padding:8px 0; width:90px; color:#666;">警訊名稱</td><td style="padding:8px 0;"><strong>${warningName}</strong></td></tr>
+      <tr><td style="padding:8px 0; color:#666;">資產比對</td><td style="padding:8px 0;">${assetLine}</td></tr>
+      <tr><td style="padding:8px 0; color:#666;">原始寄件者</td><td style="padding:8px 0;">${from}</td></tr>
+      <tr><td style="padding:8px 0; color:#666;">原始主旨</td><td style="padding:8px 0;">${subject}</td></tr>
+      <tr><td style="padding:8px 0; color:#666;">收件時間</td><td style="padding:8px 0;">${date}</td></tr>
+    </table>
+    <div style="text-align:center; margin:24px 0;">
+      ${notUseBtn}
+      ${doneBtn}
+    </div>
+    <p style="color:#888; font-size:13px;">🚫 未使用：本單位無相關資產、無需處理。<br>✅ 已處理：已完成必要之風險處置。</p>
+    <hr style="border:none; border-top:1px solid #eee; margin:20px 0;">
+    <p style="color:#666; font-size:13px;">---------- 原始信件內容 ----------</p>
+    <pre style="background:#f7f9fc; border:1px solid #e0e4ea; border-radius:6px; padding:14px; white-space:pre-wrap; word-break:break-word; font-family:inherit; font-size:13px; line-height:1.6; color:#444; max-height:360px; overflow:auto;">${originalBody}</pre>
+  </div>`;
+}
+
+/**
+ * 寄送互動確認信給主要收件人(+CC)
+ * @param {string} warningName
+ * @param {string} matchedAsset - 無命中傳空字串
+ * @param {GmailMessage} originalMessage
+ * @param {Object} settings
+ */
+function sendInteractiveNotify(warningName, matchedAsset, originalMessage, settings) {
+  try {
+    const recipients = settings.assetHitRecipients || CONFIG.PERSON_A_EMAIL;
+    const primaryRecipient = recipients.split(',')[0].trim();
+    const subject = `【請確認】${warningName}`;
+
+    const htmlBody = buildInteractiveNotifyHtml({
+      warningName: warningName,
+      matchedAsset: matchedAsset,
+      originalMessage: originalMessage,
+      op: primaryRecipient,
+      isTest: false
+    });
+
+    const plainBody = `資安預警 - 請確認此資產處理狀態\n警訊名稱：${warningName}\n（此信件需以支援 HTML 的郵件用戶端開啟以顯示確認按鈕）`;
+
+    const options = { htmlBody: htmlBody };
+    if (settings.assetHitCc && settings.assetHitCc.trim()) {
+      options.cc = settings.assetHitCc.trim();
+    }
+
+    GmailApp.sendEmail(recipients, subject, plainBody, options);
+
+    if (settings.chatNotify) {
+      const ccInfo = settings.assetHitCc ? `\nCC：${settings.assetHitCc}` : '';
+      sendToChat(`📧 **[互動確認信] 已寄出**\n收件者：${recipients}\n警訊：${warningName}${ccInfo}`);
+    }
+    return true;
+  } catch (e) {
+    console.error('寄送互動確認信失敗: ' + e.message);
+    return false;
+  }
+}
+
+/**
+ * 寄送互動「測試」信到目前設定的主要收件人（供 google.script.run 呼叫）
+ * @returns {Object} { success, recipient, error }
+ */
+function sendTestInteractiveEmail() {
+  try {
+    const settings = getSystemSettings();
+    const recipients = settings.assetHitRecipients || CONFIG.PERSON_A_EMAIL;
+    const primaryRecipient = recipients.split(',')[0].trim();
+    if (!primaryRecipient) throw new Error('尚未設定主要收件人');
+
+    const subject = '【測試】資安預警互動確認信';
+    const htmlBody = buildInteractiveNotifyHtml({
+      warningName: '【測試】Apache HTTP Server 多個安全漏洞 (CVE-2024-TEST)',
+      matchedAsset: 'Apache HTTP Server',
+      originalMessage: null,
+      op: primaryRecipient,
+      isTest: true
+    });
+    const plainBody = '這是一封測試互動確認信，請以支援 HTML 的郵件用戶端開啟以顯示確認按鈕。';
+
+    GmailApp.sendEmail(primaryRecipient, subject, plainBody, { htmlBody: htmlBody });
+
+    return { success: true, recipient: primaryRecipient };
+  } catch (e) {
+    console.error('寄送測試互動信失敗: ' + e.message);
+    return { success: false, error: e.message };
+  }
 }
 
 function getSystemSettings() {
@@ -30,8 +381,8 @@ function getSystemSettings() {
   const processedCcList = readColumnEmails(sheet, 12, 2, numRows);     // L 欄
   const assetHitRecipientsList = readColumnEmails(sheet, 13, 2, numRows); // M 欄
 
-  // 讀取 N2, O2, P2 三個獨立的自動草稿開關（各功能組獨立）
-  const draftFlags = sheet.getRange("N2:P2").getDisplayValues()[0];
+  // 讀取 N2~Q2：三個獨立自動草稿開關 + 一律轉寄資訊組確認開關
+  const draftFlags = sheet.getRange("N2:Q2").getDisplayValues()[0];
 
   return {
     scanRead: values[0] === "是",
@@ -43,6 +394,7 @@ function getSystemSettings() {
     assetHitAutoDraft: draftFlags[0] === "是",  // N2: 命中資產自動草稿
     notInUseAutoDraft: draftFlags[1] === "是",  // O2: 未使用自動草稿
     processedAutoDraft: draftFlags[2] === "是", // P2: 已處理自動草稿
+    confirmForwardNotify: draftFlags[3] === "是", // Q2: 一律轉寄資訊組確認（互動信）
     assetHitCc: assetHitCcList.join(', '),                              // J 欄: 命中資產通知 CC
     notInUseCc: notInUseCcList.join(', '),                              // K 欄: 未使用寄信通知 CC
     processedCc: processedCcList.join(', '),                            // L 欄: 已處理寄信通知 CC
@@ -81,6 +433,7 @@ function updateSystemSetting(key, isEnabled) {
   if (key === 'assetHitAutoDraft') sheet.getRange("N2").setValue(val);   // N2: 命中資產自動草稿
   if (key === 'notInUseAutoDraft') sheet.getRange("O2").setValue(val);   // O2: 未使用自動草稿
   if (key === 'processedAutoDraft') sheet.getRange("P2").setValue(val);  // P2: 已處理自動草稿
+  if (key === 'confirmForwardNotify') sheet.getRange("Q2").setValue(val); // Q2: 一律轉寄資訊組確認
 
   return { success: true };
 }
@@ -289,6 +642,28 @@ function normalizeSheetRow(sheetRow, maxRow) {
   return actualRow;
 }
 
+/**
+ * 將某列的使用狀態欄位寫入（I 使用狀態、J 操作者、L False Positive、B 狀態 ALERT→SAFE）
+ * Dashboard 點擊與信件按鈕點擊兩條路徑共用，確保寫入一致。
+ * @param {Sheet} sheet - SystemLogs 工作表
+ * @param {number} actualRow - 實際列號
+ * @param {string} usageStatus - '未使用' 或 '已處理'
+ * @param {string} operatorEmail - 操作者 email
+ */
+function markLogRowUsage(sheet, actualRow, usageStatus, operatorEmail) {
+  // I 欄 (使用狀態)
+  sheet.getRange(actualRow, 9).setValue(usageStatus);
+  // J 欄 (操作者)
+  sheet.getRange(actualRow, 10).setValue(operatorEmail);
+  // L 欄：未使用代表命中資產未被自動排除，記為 false positive
+  sheet.getRange(actualRow, 12).setValue(usageStatus === '未使用' ? 'V' : '');
+  // B 欄狀態：無論未使用或已處理，皆將 ALERT 改為 SAFE
+  const currentStatus = sheet.getRange(actualRow, 2).getValue();
+  if (currentStatus === 'ALERT') {
+    sheet.getRange(actualRow, 2).setValue('SAFE');
+  }
+}
+
 function applyUsageStatusUpdate(sheet, actualRow, usageStatus, settings, userEmail, userInfo) {
   // 讀取該列的資料（Warning Name, Message ID）
   const rowData = sheet.getRange(actualRow, 1, 1, 10).getDisplayValues()[0];
@@ -296,20 +671,8 @@ function applyUsageStatusUpdate(sheet, actualRow, usageStatus, settings, userEma
   const matchedAsset = rowData[3]; // D 欄
   const messageId = rowData[6];    // G 欄
 
-  // 更新 I 欄 (使用狀態)
-  sheet.getRange(actualRow, 9).setValue(usageStatus);
-
-  // 更新 J 欄 (操作者)
-  sheet.getRange(actualRow, 10).setValue(userEmail);
-
-  // 未使用代表命中資產未被自動排除，記為 false positive
-  sheet.getRange(actualRow, 12).setValue(usageStatus === '未使用' ? 'V' : '');
-
-  // 無論是「未使用」或「已處理」，都將 B 欄狀態從 ALERT 改為 SAFE
-  const currentStatus = sheet.getRange(actualRow, 2).getValue();
-  if (currentStatus === 'ALERT') {
-    sheet.getRange(actualRow, 2).setValue('SAFE');
-  }
+  // 寫入使用狀態、操作者、False Positive、安全狀態
+  markLogRowUsage(sheet, actualRow, usageStatus, userEmail);
 
   let draftCreated = false;
   let emailSent = false;
@@ -560,17 +923,25 @@ function processSingleMessage(message, assetList, settings) {
   
   // [新增] 特殊處理：如果包含「DN 與 IP 黑名單」關鍵字，直接使用固定值
   if (warningInfo.isBlacklistAlert && !warningName) {
+    const fixedWarningName = 'DN 與 IP 黑名單更新';
+    const fixedAsset = 'DN 與 IP 黑名單';
+
+    // 一律轉寄資訊組確認（互動信）開啟時取代原邏輯
+    if (settings.confirmForwardNotify) {
+      sendInteractiveNotify(fixedWarningName, fixedAsset, message, settings);
+      logExecutionResult('ALERT', fixedWarningName, fixedAsset, '已寄出互動確認信', msgId, emailDate, hasReply, '', '');
+      return;
+    }
+
     let actionLog = '僅紀錄 (自動草稿已關閉)';
     if (settings.assetHitAutoDraft) {
       // 建立通知草稿給 Person A
-      const fixedWarningName = 'DN 與 IP 黑名單更新';
-      const fixedAsset = 'DN 與 IP 黑名單';
       createDraftForPersonA(fixedWarningName, fixedAsset, message, settings);
       actionLog = '已建立通知草稿';
     } else if (settings.chatNotify) {
       sendToChat(`🚨 **[DN 與 IP 黑名單更新]**\n已偵測到黑名單更新通知`);
     }
-    logExecutionResult('ALERT', 'DN 與 IP 黑名單更新', 'DN 與 IP 黑名單', actionLog, msgId, emailDate, hasReply, notInUse, '');
+    logExecutionResult('ALERT', fixedWarningName, fixedAsset, actionLog, msgId, emailDate, hasReply, notInUse, '');
     return;
   }
   
@@ -590,6 +961,21 @@ function processSingleMessage(message, assetList, settings) {
   // [新增] 去除重複的資產（不區分大小寫）
   const uniqueAssets = [...new Set(matchedAssets.map(a => a.toLowerCase()))]
     .map(lowerAsset => matchedAssets.find(a => a.toLowerCase() === lowerAsset));
+
+  // ===== 一律轉寄資訊組確認（互動信）：開啟時取代原有命中/未使用邏輯 =====
+  if (settings.confirmForwardNotify) {
+    const matchedAssetStr = uniqueAssets.length ? uniqueAssets.join(', ') : '';
+    sendInteractiveNotify(warningName, matchedAssetStr, message, settings);
+    // 不自動標記未使用，保留待資訊組於信中確認（Dashboard 顯示待確認）
+    logExecutionResult(
+      uniqueAssets.length ? 'ALERT' : 'SAFE',
+      warningName,
+      matchedAssetStr || '無相關資產',
+      '已寄出互動確認信',
+      msgId, emailDate, hasReply, '', ''
+    );
+    return;
+  }
 
   if (uniqueAssets.length > 0) {
     // ===== 有命中資產：通知 Person A（由 assetHitNotify 控制）=====
@@ -738,8 +1124,8 @@ function ensureSettingsSheetExists() {
   let settingSheet = ss.getSheetByName(CONFIG.SETTINGS_SHEET_NAME);
   if (!settingSheet) {
     settingSheet = ss.insertSheet(CONFIG.SETTINGS_SHEET_NAME);
-    settingSheet.appendRow(['掃描已讀信件 (A2)', '開啟自動草稿 (B2)', '開啟Chat通知 (C2)', '授權使用者 (D欄)', '使用者姓名 (E欄)', '保留欄位 (F欄)', '未使用寄信通知 (G2)', '已處理寄信通知 (H2)', '命中資產通知 (I2)', '命中資產CC (J2)', '未使用CC (K2)', '已處理CC (L2)', '命中資產主要收件人 (M2)']);
-    settingSheet.appendRow(['否', '是', '是', '', '', '', '否', '否', '是', '', '', '', CONFIG.PERSON_A_EMAIL]);
+    settingSheet.appendRow(['掃描已讀信件 (A2)', '開啟自動草稿 (B2)', '開啟Chat通知 (C2)', '授權使用者 (D欄)', '使用者姓名 (E欄)', '保留欄位 (F欄)', '未使用寄信通知 (G2)', '已處理寄信通知 (H2)', '命中資產通知 (I2)', '命中資產CC (J2)', '未使用CC (K2)', '已處理CC (L2)', '命中資產主要收件人 (M2)', '命中資產自動草稿 (N2)', '未使用自動草稿 (O2)', '已處理自動草稿 (P2)', '一律轉寄資訊組確認 (Q2)']);
+    settingSheet.appendRow(['否', '是', '是', '', '', '', '否', '否', '是', '', '', '', CONFIG.PERSON_A_EMAIL, '否', '否', '否', '否']);
   }
 }
 
