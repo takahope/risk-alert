@@ -265,34 +265,42 @@ function buildInteractiveNotifyHtml(opts) {
   }
 
   const msgId = opts.originalMessage ? opts.originalMessage.getId() : '';
-  const notUseBtn = buildActionButton('🚫 未使用', '#e8710a', '未使用', msgId, opts.op, opts.isTest);
-  const doneBtn = buildActionButton('✅ 已處理', '#188038', '已處理', msgId, opts.op, opts.isTest);
+  const notUseBtn = buildActionButton('未使用', '#e8710a', '未使用', msgId, opts.op, opts.isTest);
+  const doneBtn = buildActionButton('已處理', '#188038', '已處理', msgId, opts.op, opts.isTest);
 
   const testBanner = opts.isTest
-    ? `<div style="background:#fff3cd; color:#8a6d00; padding:10px 14px; border-radius:6px; margin-bottom:16px; font-size:14px;">🧪 這是一封<strong>測試互動信</strong>。點擊下方按鈕後，系統會將「將回覆給原始寄件者的內容」模擬寄到 ${escapeHtmlForEmail(CONFIG.PERSON_A_EMAIL)}，不會回覆真實寄件者。</div>`
+    ? `<div style="background:#fff3cd; color:#8a6d00; padding:10px 14px; border-radius:6px; margin-bottom:16px; font-size:14px;">這是一封<strong>測試互動信</strong>。點擊下方按鈕後，系統會將「將回覆給原始寄件者的內容」模擬寄到 ${escapeHtmlForEmail(CONFIG.PERSON_A_EMAIL)}，不會回覆真實寄件者。</div>`
     : '';
 
   return `
-  <div style="font-family:-apple-system,'Microsoft JhengHei',sans-serif; max-width:640px; margin:0 auto; color:#333;">
-    ${testBanner}
-    <h2 style="color:#1a73e8; font-size:20px;">資安預警 - 請確認此資產處理狀態</h2>
-    <p style="line-height:1.7;">親愛的資訊組同仁您好，系統偵測到以下漏洞預警，請於本信中直接確認此資產的處理狀態。點擊按鈕後，系統會以您的名義回覆原始寄件者。</p>
-    <table style="width:100%; border-collapse:collapse; margin:16px 0; font-size:14px;">
-      <tr><td style="padding:8px 0; width:90px; color:#666;">警訊名稱</td><td style="padding:8px 0;"><strong>${warningName}</strong></td></tr>
-      <tr><td style="padding:8px 0; color:#666;">資產比對</td><td style="padding:8px 0;">${assetLine}</td></tr>
-      <tr><td style="padding:8px 0; color:#666;">原始寄件者</td><td style="padding:8px 0;">${from}</td></tr>
-      <tr><td style="padding:8px 0; color:#666;">原始主旨</td><td style="padding:8px 0;">${subject}</td></tr>
-      <tr><td style="padding:8px 0; color:#666;">收件時間</td><td style="padding:8px 0;">${date}</td></tr>
-    </table>
-    <div style="text-align:center; margin:24px 0;">
-      ${notUseBtn}
-      ${doneBtn}
-    </div>
-    <p style="color:#888; font-size:13px;">🚫 未使用：本單位無相關資產、無需處理。<br>✅ 已處理：已完成必要之風險處置。</p>
-    <hr style="border:none; border-top:1px solid #eee; margin:20px 0;">
-    <p style="color:#666; font-size:13px;">---------- 原始信件內容 ----------</p>
-    <pre style="background:#f7f9fc; border:1px solid #e0e4ea; border-radius:6px; padding:14px; white-space:pre-wrap; word-break:break-word; font-family:inherit; font-size:13px; line-height:1.6; color:#444; max-height:360px; overflow:auto;">${originalBody}</pre>
-  </div>`;
+  <!DOCTYPE html>
+  <html>
+    <head>
+      <meta charset="UTF-8">
+    </head>
+    <body>
+      <div style="font-family:-apple-system,'Microsoft JhengHei',sans-serif; max-width:640px; margin:0 auto; color:#333;">
+        ${testBanner}
+        <h2 style="color:#1a73e8; font-size:20px;">資安預警 - 請確認此資產處理狀態</h2>
+        <p style="line-height:1.7;">親愛的資訊組同仁您好，系統偵測到以下漏洞預警，請於本信中直接確認此資產的處理狀態。點擊按鈕後，系統會以您的名義回覆原始寄件者。</p>
+        <table style="width:100%; border-collapse:collapse; margin:16px 0; font-size:14px;">
+          <tr><td style="padding:8px 0; width:90px; color:#666;">警訊名稱</td><td style="padding:8px 0;"><strong>${warningName}</strong></td></tr>
+          <tr><td style="padding:8px 0; color:#666;">資產比對</td><td style="padding:8px 0;">${assetLine}</td></tr>
+          <tr><td style="padding:8px 0; color:#666;">原始寄件者</td><td style="padding:8px 0;">${from}</td></tr>
+          <tr><td style="padding:8px 0; color:#666;">原始主旨</td><td style="padding:8px 0;">${subject}</td></tr>
+          <tr><td style="padding:8px 0; color:#666;">收件時間</td><td style="padding:8px 0;">${date}</td></tr>
+        </table>
+        <div style="text-align:center; margin:24px 0;">
+          ${notUseBtn}
+          ${doneBtn}
+        </div>
+        <p style="color:#888; font-size:13px;">未使用：本單位無相關資產、無需處理。<br>已處理：已完成必要之風險處置。</p>
+        <hr style="border:none; border-top:1px solid #eee; margin:20px 0;">
+        <p style="color:#666; font-size:13px;">---------- 原始信件內容 ----------</p>
+        <pre style="background:#f7f9fc; border:1px solid #e0e4ea; border-radius:6px; padding:14px; white-space:pre-wrap; word-break:break-word; font-family:inherit; font-size:13px; line-height:1.6; color:#444; max-height:360px; overflow:auto;">${originalBody}</pre>
+      </div>
+    </body>
+  </html>`;
 }
 
 /**
