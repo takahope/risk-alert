@@ -8,11 +8,18 @@
 // 2. 網頁應用程式與設定 API (Web App & Settings)
 // ==========================================
 
-const ALERT_FORWARD_SENDER_NAME = '[資安預警情資通報]資安聯絡人轉寄';
+const ALERT_FORWARD_SENDER_NAME = '[資安預警情資通報]';
+const ALERT_REPLY_SENDER_NAME = '資安聯絡人';
 
 function withAlertSenderName(options) {
   const mergedOptions = options ? Object.assign({}, options) : {};
   mergedOptions.name = ALERT_FORWARD_SENDER_NAME;
+  return mergedOptions;
+}
+
+function withAlertReplySenderName(options) {
+  const mergedOptions = options ? Object.assign({}, options) : {};
+  mergedOptions.name = ALERT_REPLY_SENDER_NAME;
   return mergedOptions;
 }
 
@@ -172,7 +179,7 @@ function handleEmailButtonReply(params) {
       }
 
       // 回覆原始寄件者（模擬資訊組回覆）
-      originalMessage.reply(replyBody, withAlertSenderName());
+      originalMessage.reply(replyBody, withAlertReplySenderName());
 
       // 更新 SystemLogs 該列使用狀態與操作者
       const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.LOG_SHEET_NAME);
@@ -1550,7 +1557,7 @@ function sendEmailReplyToSenderB(warningName, originalMessage, settings) {
       replyOptions.cc = settings.notInUseCc.trim();
     }
     
-    originalMessage.reply(replyBody, withAlertSenderName(replyOptions));
+    originalMessage.reply(replyBody, withAlertReplySenderName(replyOptions));
     
     if (settings.chatNotify) {
       const ccInfo = settings.notInUseCc ? `\nCC：${settings.notInUseCc}` : '';
@@ -1632,7 +1639,7 @@ function sendEmailForNotInUse(warningName, matchedAsset, userInfo, originalMessa
     
     if (originalMessage) {
       // 直接回覆原始郵件
-      originalMessage.reply(replyBody, withAlertSenderName(replyOptions));
+      originalMessage.reply(replyBody, withAlertReplySenderName(replyOptions));
     } else {
       // 無法找到原始郵件，發送獨立郵件
       const subject = `[無需處理] ${warningName}`;
@@ -1640,7 +1647,7 @@ function sendEmailForNotInUse(warningName, matchedAsset, userInfo, originalMessa
       if (settings.notInUseCc && settings.notInUseCc.trim()) {
         sendOptions.cc = settings.notInUseCc.trim();
       }
-      GmailApp.sendEmail(CONFIG.SENDER_B_EMAILS[0] || '', subject, replyBody, withAlertSenderName(sendOptions));
+      GmailApp.sendEmail(CONFIG.SENDER_B_EMAILS[0] || '', subject, replyBody, withAlertReplySenderName(sendOptions));
     }
     
     if (settings.chatNotify) {
@@ -1677,7 +1684,7 @@ function sendEmailForProcessed(warningName, matchedAsset, userInfo, timestamp, o
     
     if (originalMessage) {
       // 直接回覆原始郵件
-      originalMessage.reply(replyBody, withAlertSenderName(replyOptions));
+      originalMessage.reply(replyBody, withAlertReplySenderName(replyOptions));
     } else {
       // 無法找到原始郵件，發送獨立郵件
       const subject = `[已處理] ${warningName}`;
@@ -1685,7 +1692,7 @@ function sendEmailForProcessed(warningName, matchedAsset, userInfo, timestamp, o
       if (settings.processedCc && settings.processedCc.trim()) {
         sendOptions.cc = settings.processedCc.trim();
       }
-      GmailApp.sendEmail(CONFIG.SENDER_B_EMAILS[0] || '', subject, replyBody, withAlertSenderName(sendOptions));
+      GmailApp.sendEmail(CONFIG.SENDER_B_EMAILS[0] || '', subject, replyBody, withAlertReplySenderName(sendOptions));
     }
     
     if (settings.chatNotify) {
