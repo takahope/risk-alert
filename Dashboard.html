@@ -2110,6 +2110,14 @@
                 <span class="slider"></span>
               </label>
             </div>
+            <div class="settings-cc-row">
+              <div class="settings-cc-label">互動信寄送模式</div>
+              <select class="settings-cc-input" id="setting-interactiveSendMode" onchange="updateInteractiveSendMode()">
+                <option value="perRecipient">逐一寄送（每人一封，操作者較準確）</option>
+                <option value="groupTo">單封群發（所有人同一封，操作者為第一位）</option>
+              </select>
+              <div class="settings-cc-hint">多人主要收件人時，逐一寄送可避免按鈕操作者都固定為第一位；第一個有效點擊後，其他人再點擊不會重複寄信。</div>
+            </div>
 
             <!-- 寄送互動測試信 -->
             <div class="settings-cc-row">
@@ -3469,6 +3477,7 @@
           document.getElementById('setting-processedAutoDraft').checked = settings.processedAutoDraft;
           // 一律轉寄資訊組確認（互動信）
           document.getElementById('setting-confirmForwardNotify').checked = settings.confirmForwardNotify;
+          document.getElementById('setting-interactiveSendMode').value = settings.interactiveSendMode || 'perRecipient';
           
           // 載入主要收件人設定
           console.log('主要收件人:', settings.assetHitRecipients); // Debug log
@@ -3535,6 +3544,19 @@
         }).withFailureHandler(function(error) {
           showSettingsToast('更新失敗: ' + error.message);
         }).updateAssetHitRecipients(recipients);
+      }
+
+      function updateInteractiveSendMode() {
+        const select = document.getElementById('setting-interactiveSendMode');
+        const mode = select.value;
+        
+        google.script.run.withSuccessHandler(function(result) {
+          select.value = (result && result.mode) || mode;
+          showSettingsToast('互動信寄送模式已更新');
+        }).withFailureHandler(function(error) {
+          showSettingsToast('模式更新失敗: ' + error.message);
+          loadSettingsModal();
+        }).updateInteractiveSendMode(mode);
       }
 
       // 寄送互動測試信到主要收件人

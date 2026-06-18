@@ -34,6 +34,7 @@ This is a **Google Apps Script (GAS)** web application that automates security v
   - J: assetHitCc, K: notInUseCc, L: processedCc, M: assetHitRecipients
   - N2: assetHitAutoDraft, O2: notInUseAutoDraft, P2: processedAutoDraft (per-function auto-draft toggles)
   - Q2: confirmForwardNotify (always send an interactive HTML confirmation email to the primary recipient regardless of asset hit; replaces the per-hit forward/draft logic when on)
+  - R2: interactiveSendMode (`perRecipient` sends one interactive email per primary recipient; `groupTo` sends one email to the full To list)
 - **SystemLogs**: Execution history; column G stores Gmail Message ID for deduplication; `sheetRow` values passed from frontend are actual 1-based spreadsheet row numbers (including header row)
 
 ## Key Patterns
