@@ -248,11 +248,20 @@ function handleTestButtonReply(params) {
         replyBody = buildProcessedReplyBody(sampleWarning, sampleAsset, opDisplayName, timestamp);
       }
 
+      // 依狀態套用對應 CC 設定（未使用 → K 欄 notInUseCc；已處理 → L 欄 processedCc），與正式流程一致
+      const settings = getSystemSettings();
+      const ccList = status === '未使用' ? settings.notInUseCc : settings.processedCc;
+      const sendOptions = {};
+      if (ccList && ccList.trim()) {
+        sendOptions.cc = ccList.trim();
+      }
+      const ccInfo = sendOptions.cc ? `\n預期 CC：${sendOptions.cc}` : '\n預期 CC：（未設定）';
+
       const subject = `[測試回覆模擬] 資訊組點選「${status}」將回覆給原始寄件者的內容`;
       const body = `這是一封「測試模擬」郵件（非正式回覆）。
 
 資訊組同仁（模擬：${opDisplayName}）在測試互動信中點了「${status}」。
-在正式流程中，系統會以下列內容回覆原始寄件者：
+在正式流程中，系統會以下列內容回覆原始寄件者：${ccInfo}
 
 ----------（將回覆給原始寄件者的內容）----------
 ${replyBody}
@@ -260,7 +269,7 @@ ${replyBody}
 
 若以上內容正確，表示互動信回覆流程運作正常。`;
 
-      GmailApp.sendEmail(CONFIG.PERSON_A_EMAIL, subject, body, withAlertReplySenderName());
+      GmailApp.sendEmail(CONFIG.PERSON_A_EMAIL, subject, body, withAlertReplySenderName(sendOptions));
       markTestClickHandled(testId, status, opDisplayName);
 
       return renderActionResultPage(
