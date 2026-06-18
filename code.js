@@ -178,15 +178,24 @@ function handleEmailButtonReply(params) {
         replyBody = buildProcessedReplyBody(warningName, matchedAsset, opDisplayName, timestamp);
       }
 
+      // 依狀態套用對應 CC 設定（未使用 → K 欄 notInUseCc；已處理 → L 欄 processedCc）
+      const settings = getSystemSettings();
+      const ccList = status === '未使用' ? settings.notInUseCc : settings.processedCc;
+      const replyOptions = {};
+      if (ccList && ccList.trim()) {
+        replyOptions.cc = ccList.trim();
+      }
+
       // 回覆原始寄件者（模擬資訊組回覆）
-      originalMessage.reply(replyBody, withAlertReplySenderName());
+      originalMessage.reply(replyBody, withAlertReplySenderName(replyOptions));
 
       // 更新 SystemLogs 該列使用狀態與操作者
       const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.LOG_SHEET_NAME);
       markLogRowUsage(sheet, logRow.row, status, op || '互動信回覆');
 
-      if (getSystemSettings().chatNotify) {
-        sendToChat(`📨 **[互動信回覆] 已回覆原始寄件者**\n警訊：${warningName}\n動作：${status}\n操作者：${opDisplayName}`);
+      if (settings.chatNotify) {
+        const ccInfo = replyOptions.cc ? `\nCC：${replyOptions.cc}` : '';
+        sendToChat(`📨 **[互動信回覆] 已回覆原始寄件者**\n警訊：${warningName}\n動作：${status}\n操作者：${opDisplayName}${ccInfo}`);
       }
 
       return renderActionResultPage(
