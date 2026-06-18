@@ -251,7 +251,7 @@ ${replyBody}
 
 若以上內容正確，表示互動信回覆流程運作正常。`;
 
-      GmailApp.sendEmail(CONFIG.PERSON_A_EMAIL, subject, body, withAlertSenderName());
+      GmailApp.sendEmail(CONFIG.PERSON_A_EMAIL, subject, body, withAlertReplySenderName());
       markTestClickHandled(testId, status, opDisplayName);
 
       return renderActionResultPage(
@@ -1586,11 +1586,12 @@ function buildNotInUseReplyBody(warningName, matchedAsset, userDisplayName) {
 已收到漏洞預警通知：
 「${warningName}」
 
-經人工確認，相關資產「${matchedAsset}」無需處理。
+經人工確認，未使用相關產品。
 感謝通知。
 
 處理人員：${userDisplayName}
-  `.trim();
+
+克霖敬上`.trim();
 }
 
 /**
@@ -1609,13 +1610,14 @@ function buildProcessedReplyBody(warningName, matchedAsset, userDisplayName, tim
 關於漏洞預警通知：
 「${warningName}」
 
-經評估確認影響範圍，相關資產「${matchedAsset}」已完成必要之風險處置措施。
+經評估確認影響範圍，已依防護建議和建議措施，完成必要之風險處置措施和更新修補。
 
 處理人員：${userDisplayName}
 處理時間：${timestamp}
 
 如有任何問題，請隨時聯繫。
-  `.trim();
+
+克霖敬上`.trim();
 }
 
 /**
@@ -1899,12 +1901,12 @@ ${testData.originalEmailBody}
 已收到漏洞預警通知：
 「${testData.warningName}」
 
-經人工確認，相關資產「${testData.matchedAsset}」無需處理。
+經人工確認，未使用相關產品。
 感謝通知。
 
 處理人員：${userInfo.displayName}
 
-此郵件由系統自動發送。`);
+克霖敬上`);
   console.log('---');
   console.log('');
   
@@ -1922,14 +1924,14 @@ ${testData.originalEmailBody}
 關於漏洞預警通知：
 「${testData.warningName}」
 
-經評估確認影響範圍，相關資產「${testData.matchedAsset}」已完成必要之風險處置措施。
+經評估確認影響範圍，已依防護建議和建議措施，完成必要之風險處置措施和更新修補。
 
 處理人員：${userInfo.displayName}
 處理時間：${testData.timestamp}
 
 如有任何問題，請隨時聯繫。
 
-此郵件由系統自動發送。`);
+克霖敬上`);
   console.log('---');
   console.log('');
   
