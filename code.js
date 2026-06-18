@@ -8,6 +8,14 @@
 // 2. 網頁應用程式與設定 API (Web App & Settings)
 // ==========================================
 
+const ALERT_FORWARD_SENDER_NAME = '[資安預警情資通報]資安聯絡人轉寄';
+
+function withAlertSenderName(options) {
+  const mergedOptions = options ? Object.assign({}, options) : {};
+  mergedOptions.name = ALERT_FORWARD_SENDER_NAME;
+  return mergedOptions;
+}
+
 function doGet(e) {
   // 依 e.parameter 路由：互動信按鈕點擊 → 執行回信動作並回傳確認頁；否則顯示儀表板
   if (e && e.parameter && e.parameter.action === 'usageReply') {
@@ -164,7 +172,7 @@ function handleEmailButtonReply(params) {
       }
 
       // 回覆原始寄件者（模擬資訊組回覆）
-      originalMessage.reply(replyBody);
+      originalMessage.reply(replyBody, withAlertSenderName());
 
       // 更新 SystemLogs 該列使用狀態與操作者
       const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.LOG_SHEET_NAME);
@@ -236,7 +244,7 @@ ${replyBody}
 
 若以上內容正確，表示互動信回覆流程運作正常。`;
 
-      GmailApp.sendEmail(CONFIG.PERSON_A_EMAIL, subject, body);
+      GmailApp.sendEmail(CONFIG.PERSON_A_EMAIL, subject, body, withAlertSenderName());
       markTestClickHandled(testId, status, opDisplayName);
 
       return renderActionResultPage(
@@ -440,7 +448,7 @@ function sendTestInteractiveEmail() {
           isTest: true,
           testId: testId
         });
-        GmailApp.sendEmail(recipient, subject, plainBody, { htmlBody: htmlBody });
+        GmailApp.sendEmail(recipient, subject, plainBody, withAlertSenderName({ htmlBody: htmlBody }));
       });
     } else {
       const htmlBody = buildInteractiveNotifyHtml({
@@ -451,7 +459,7 @@ function sendTestInteractiveEmail() {
         isTest: true,
         testId: testId
       });
-      GmailApp.sendEmail(recipientInfo.display, subject, plainBody, { htmlBody: htmlBody });
+      GmailApp.sendEmail(recipientInfo.display, subject, plainBody, withAlertSenderName({ htmlBody: htmlBody }));
     }
 
     return { success: true, recipient: recipientInfo.display };
@@ -466,7 +474,7 @@ function buildInteractiveEmailOptions(htmlBody, settings) {
   if (settings.assetHitCc && settings.assetHitCc.trim()) {
     options.cc = settings.assetHitCc.trim();
   }
-  return options;
+  return withAlertSenderName(options);
 }
 
 function getPrimaryRecipientInfo(settings) {
@@ -1437,7 +1445,7 @@ Subject: ${originalSubject}
 ${originalMessage.getPlainBody()}
   `.trim();
   
-  GmailApp.createDraft(recipients, subject, forwardBody);
+  GmailApp.createDraft(recipients, subject, forwardBody, withAlertSenderName());
   
   if (settings.chatNotify) {
     sendToChat(`🚨 **[資產命中] 已建立轉寄草稿**\n收件者：${recipients}\n偵測資產：${matchedAsset}\n警訊名稱：${warningName}`);
@@ -1456,7 +1464,7 @@ function createDraftReplyToSenderB(warningName, originalMessage, settings) {
     感謝通知。
   `;
   
-  originalMessage.getThread().createDraftReply(replyBody);
+  originalMessage.getThread().createDraftReply(replyBody, withAlertSenderName());
   
   if (settings.chatNotify) {
     sendToChat(`✅ **[無相關資產] 已建立回覆草稿**\n警訊名稱：${warningName}`);
@@ -1502,7 +1510,7 @@ function sendEmailForPersonA(warningName, matchedAsset, originalMessage, setting
     const recipients = settings.assetHitRecipients || CONFIG.PERSON_A_EMAIL;
     
     // 使用 GmailMessage.forward() 轉寄原始郵件
-    originalMessage.forward(recipients, forwardOptions);
+    originalMessage.forward(recipients, withAlertSenderName(forwardOptions));
     
     if (settings.chatNotify) {
       const ccInfo = settings.assetHitCc ? `\nCC：${settings.assetHitCc}` : '';
@@ -1542,7 +1550,7 @@ function sendEmailReplyToSenderB(warningName, originalMessage, settings) {
       replyOptions.cc = settings.notInUseCc.trim();
     }
     
-    originalMessage.reply(replyBody, replyOptions);
+    originalMessage.reply(replyBody, withAlertSenderName(replyOptions));
     
     if (settings.chatNotify) {
       const ccInfo = settings.notInUseCc ? `\nCC：${settings.notInUseCc}` : '';
@@ -1624,7 +1632,7 @@ function sendEmailForNotInUse(warningName, matchedAsset, userInfo, originalMessa
     
     if (originalMessage) {
       // 直接回覆原始郵件
-      originalMessage.reply(replyBody, replyOptions);
+      originalMessage.reply(replyBody, withAlertSenderName(replyOptions));
     } else {
       // 無法找到原始郵件，發送獨立郵件
       const subject = `[無需處理] ${warningName}`;
@@ -1632,7 +1640,7 @@ function sendEmailForNotInUse(warningName, matchedAsset, userInfo, originalMessa
       if (settings.notInUseCc && settings.notInUseCc.trim()) {
         sendOptions.cc = settings.notInUseCc.trim();
       }
-      GmailApp.sendEmail(CONFIG.SENDER_B_EMAILS[0] || '', subject, replyBody, sendOptions);
+      GmailApp.sendEmail(CONFIG.SENDER_B_EMAILS[0] || '', subject, replyBody, withAlertSenderName(sendOptions));
     }
     
     if (settings.chatNotify) {
@@ -1669,7 +1677,7 @@ function sendEmailForProcessed(warningName, matchedAsset, userInfo, timestamp, o
     
     if (originalMessage) {
       // 直接回覆原始郵件
-      originalMessage.reply(replyBody, replyOptions);
+      originalMessage.reply(replyBody, withAlertSenderName(replyOptions));
     } else {
       // 無法找到原始郵件，發送獨立郵件
       const subject = `[已處理] ${warningName}`;
@@ -1677,7 +1685,7 @@ function sendEmailForProcessed(warningName, matchedAsset, userInfo, timestamp, o
       if (settings.processedCc && settings.processedCc.trim()) {
         sendOptions.cc = settings.processedCc.trim();
       }
-      GmailApp.sendEmail(CONFIG.SENDER_B_EMAILS[0] || '', subject, replyBody, sendOptions);
+      GmailApp.sendEmail(CONFIG.SENDER_B_EMAILS[0] || '', subject, replyBody, withAlertSenderName(sendOptions));
     }
     
     if (settings.chatNotify) {
@@ -1707,11 +1715,11 @@ function createDraftForNotInUse(warningName, matchedAsset, userInfo, originalMes
 
     if (originalMessage) {
       // 在原始執行緒建立回覆草稿
-      originalMessage.getThread().createDraftReply(replyBody);
+      originalMessage.getThread().createDraftReply(replyBody, withAlertSenderName());
     } else {
       // 無法找到原始郵件，建立獨立草稿
       const subject = `[無需處理] ${warningName}`;
-      GmailApp.createDraft(CONFIG.SENDER_B_EMAILS[0] || '', subject, replyBody);
+      GmailApp.createDraft(CONFIG.SENDER_B_EMAILS[0] || '', subject, replyBody, withAlertSenderName());
     }
     
     if (settings.chatNotify) {
@@ -1741,11 +1749,11 @@ function createDraftForProcessed(warningName, matchedAsset, userInfo, timestamp,
 
     if (originalMessage) {
       // 在原始執行緒建立回覆草稿
-      originalMessage.getThread().createDraftReply(replyBody);
+      originalMessage.getThread().createDraftReply(replyBody, withAlertSenderName());
     } else {
       // 無法找到原始郵件，建立獨立草稿
       const subject = `[已處理] ${warningName}`;
-      GmailApp.createDraft(CONFIG.SENDER_B_EMAILS[0] || '', subject, replyBody);
+      GmailApp.createDraft(CONFIG.SENDER_B_EMAILS[0] || '', subject, replyBody, withAlertSenderName());
     }
     
     if (settings.chatNotify) {
@@ -1969,7 +1977,7 @@ function testSendEmailToMyself() {
   `.trim();
   
   try {
-    GmailApp.sendEmail(myEmail, subject, body);
+    GmailApp.sendEmail(myEmail, subject, body, withAlertSenderName());
     console.log('✅ 測試郵件已發送！請檢查你的收件匣。');
   } catch (e) {
     console.error('❌ 發送失敗: ' + e.message);
