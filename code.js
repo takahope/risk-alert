@@ -166,9 +166,11 @@ function handleEmailButtonReply(params) {
         return renderActionResultPage('找不到原始信件', '無法在信箱中找到原始信件，可能已被刪除或封存。', true);
       }
 
-      // 以主要收件人姓名模擬資訊組署名
-      const opInfo = op ? getUserDisplayName(op) : { displayName: '資訊組同仁' };
-      const opDisplayName = opInfo.displayName || op || '資訊組同仁';
+      // 操作者以點擊當下的登入帳號為準（同網域時 getActiveUser 會回傳點擊者本人），
+      // 取不到時才退回按鈕 URL 內的 op 參數。注意：不可退回 getEffectiveUser，否則會誤記成擁有者本人。
+      const operatorEmail = Session.getActiveUser().getEmail() || op || '';
+      const opInfo = operatorEmail ? getUserDisplayName(operatorEmail) : { displayName: '資訊組同仁' };
+      const opDisplayName = opInfo.displayName || operatorEmail || '資訊組同仁';
 
       let replyBody;
       if (status === '未使用') {
@@ -191,7 +193,7 @@ function handleEmailButtonReply(params) {
 
       // 更新 SystemLogs 該列使用狀態與操作者
       const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.LOG_SHEET_NAME);
-      markLogRowUsage(sheet, logRow.row, status, op || '互動信回覆');
+      markLogRowUsage(sheet, logRow.row, status, operatorEmail || '互動信回覆');
 
       if (settings.chatNotify) {
         const ccInfo = replyOptions.cc ? `\nCC：${replyOptions.cc}` : '';
@@ -237,6 +239,14 @@ function handleTestButtonReply(params) {
       const opInfo = getUserDisplayName(op);
       const opDisplayName = opInfo.displayName || op;
 
+      // 實際點擊者：以 getActiveUser 解析（同網域時應回傳點擊者本人），用於驗證身分解析是否如預期
+      const clickerEmail = Session.getActiveUser().getEmail();
+      const clickerInfo = clickerEmail ? getUserDisplayName(clickerEmail) : null;
+      const clickerLabel = clickerEmail
+        ? `${(clickerInfo && clickerInfo.displayName) || clickerEmail}（${clickerEmail}）`
+        : '（取不到 —— 可能跨網域、未登入網域帳號，或瀏覽器同時登入多個 Google 帳號）';
+      const handledOperator = (clickerInfo && clickerInfo.displayName) || clickerEmail || opDisplayName;
+
       const sampleWarning = '【測試】Apache HTTP Server 多個安全漏洞 (CVE-2024-TEST)';
       const sampleAsset = 'Apache HTTP Server';
 
@@ -260,7 +270,8 @@ function handleTestButtonReply(params) {
       const subject = `[測試回覆模擬] 資訊組點選「${status}」將回覆給原始寄件者的內容`;
       const body = `這是一封「測試模擬」郵件（非正式回覆）。
 
-資訊組同仁（模擬：${opDisplayName}）在測試互動信中點了「${status}」。
+資訊組同仁（模擬署名：${opDisplayName}）在測試互動信中點了「${status}」。
+實際點擊者（getActiveUser 解析）：${clickerLabel}
 在正式流程中，系統會以下列內容回覆原始寄件者：${ccInfo}
 
 ----------（將回覆給原始寄件者的內容）----------
@@ -270,11 +281,11 @@ ${replyBody}
 若以上內容正確，表示互動信回覆流程運作正常。`;
 
       GmailApp.sendEmail(CONFIG.PERSON_A_EMAIL, subject, body, withAlertReplySenderName(sendOptions));
-      markTestClickHandled(testId, status, opDisplayName);
+      markTestClickHandled(testId, status, handledOperator);
 
       return renderActionResultPage(
         `測試成功：${status}`,
-        `已將模擬回覆內容寄到 ${CONFIG.PERSON_A_EMAIL}，請至該信箱確認回覆樣態。`,
+        `已將模擬回覆內容寄到 ${CONFIG.PERSON_A_EMAIL}，請至該信箱確認回覆樣態。\n實際點擊者（getActiveUser 解析）：${clickerLabel}`,
         false
       );
     } finally {
