@@ -484,7 +484,7 @@ function sendTestInteractiveEmail() {
           isTest: true,
           testId: testId
         });
-        GmailApp.sendEmail(recipient, subject, plainBody, withAlertSenderName({ htmlBody: htmlBody }));
+        GmailApp.sendEmail(recipient, subject, plainBody, buildInteractiveEmailOptions(htmlBody, settings));
       });
     } else {
       const htmlBody = buildInteractiveNotifyHtml({
@@ -495,7 +495,7 @@ function sendTestInteractiveEmail() {
         isTest: true,
         testId: testId
       });
-      GmailApp.sendEmail(recipientInfo.display, subject, plainBody, withAlertSenderName({ htmlBody: htmlBody }));
+      GmailApp.sendEmail(recipientInfo.display, subject, plainBody, buildInteractiveEmailOptions(htmlBody, settings));
     }
 
     return { success: true, recipient: recipientInfo.display };
@@ -532,7 +532,7 @@ function parseEmailList(emailText) {
 }
 
 function normalizeInteractiveSendMode(mode) {
-  return mode === 'groupTo' ? 'groupTo' : 'perRecipient';
+  return mode === 'perRecipient' ? 'perRecipient' : 'groupTo';
 }
 
 function getSystemSettings() {
@@ -1308,7 +1308,7 @@ function ensureSettingsSheetExists() {
   if (!settingSheet) {
     settingSheet = ss.insertSheet(CONFIG.SETTINGS_SHEET_NAME);
     settingSheet.appendRow(['掃描已讀信件 (A2)', '開啟自動草稿 (B2)', '開啟Chat通知 (C2)', '授權使用者 (D欄)', '使用者姓名 (E欄)', '保留欄位 (F欄)', '未使用寄信通知 (G2)', '已處理寄信通知 (H2)', '命中資產通知 (I2)', '命中資產CC (J2)', '未使用CC (K2)', '已處理CC (L2)', '命中資產主要收件人 (M2)', '命中資產自動草稿 (N2)', '未使用自動草稿 (O2)', '已處理自動草稿 (P2)', '一律轉寄資訊組確認 (Q2)', '互動信寄送模式 (R2)']);
-    settingSheet.appendRow(['否', '是', '是', '', '', '', '否', '否', '是', '', '', '', CONFIG.PERSON_A_EMAIL, '否', '否', '否', '否', 'perRecipient']);
+    settingSheet.appendRow(['否', '是', '是', '', '', '', '否', '否', '是', '', '', '', CONFIG.PERSON_A_EMAIL, '否', '否', '否', '否', 'groupTo']);
     SpreadsheetApp.flush();
     return;
   }
@@ -1317,7 +1317,7 @@ function ensureSettingsSheetExists() {
     settingSheet.getRange("R1").setValue('互動信寄送模式 (R2)');
   }
   if (!settingSheet.getRange("R2").getDisplayValue()) {
-    settingSheet.getRange("R2").setValue('perRecipient');
+    settingSheet.getRange("R2").setValue('groupTo');
   } else {
     settingSheet.getRange("R2").setValue(normalizeInteractiveSendMode(settingSheet.getRange("R2").getDisplayValue()));
   }
