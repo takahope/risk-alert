@@ -252,10 +252,10 @@ function handleTestButtonReply(params) {
 
       let replyBody;
       if (status === '未使用') {
-        replyBody = buildNotInUseReplyBody(sampleWarning, sampleAsset, opDisplayName);
+        replyBody = buildNotInUseReplyBody(sampleWarning, sampleAsset, handledOperator);
       } else {
         const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
-        replyBody = buildProcessedReplyBody(sampleWarning, sampleAsset, opDisplayName, timestamp);
+        replyBody = buildProcessedReplyBody(sampleWarning, sampleAsset, handledOperator, timestamp);
       }
 
       // 依狀態套用對應 CC 設定（未使用 → K 欄 notInUseCc；已處理 → L 欄 processedCc），與正式流程一致
@@ -270,7 +270,7 @@ function handleTestButtonReply(params) {
       const subject = `[測試回覆模擬] 資訊組點選「${status}」將回覆給原始寄件者的內容`;
       const body = `這是一封「測試模擬」郵件（非正式回覆）。
 
-資訊組同仁（模擬署名：${opDisplayName}）在測試互動信中點了「${status}」。
+資訊組同仁（最終署名：${handledOperator}）在測試互動信中點了「${status}」。
 實際點擊者（getActiveUser 解析）：${clickerLabel}
 在正式流程中，系統會以下列內容回覆原始寄件者：${ccInfo}
 
