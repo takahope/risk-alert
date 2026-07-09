@@ -430,13 +430,26 @@ function sendInteractiveNotify(warningName, matchedAsset, originalMessage, setti
 }
 
 /**
+ * 組出互動確認信主旨：壓成單行並截斷，避免超過 Gmail 主旨長度上限（引數過大：subject）
+ * @param {string} warningName - 可能含換行與附帶說明的長字串
+ * @returns {string}
+ */
+function buildInteractiveSubject(warningName) {
+  const MAX_NAME_LEN = 120;  // 主旨保留給警訊名稱的字數，加前綴後仍遠低於 Gmail 上限
+  const oneLine = String(warningName || '').replace(/\s+/g, ' ').trim() || '資安預警';
+  const clipped = oneLine.length > MAX_NAME_LEN ? oneLine.slice(0, MAX_NAME_LEN) + '…' : oneLine;
+  return `【請確認】${clipped}`;
+}
+
+/**
  * 互動確認信寄送核心（會拋出例外）。
  * sendInteractiveNotify 包一層 try/catch 回傳 boolean 供 trigger 流程使用；
  * 需要把真實錯誤回報給前端的路徑（如補寄）則直接呼叫本函式。
  */
 function deliverInteractiveNotify(warningName, matchedAsset, originalMessage, settings) {
   const recipientInfo = getPrimaryRecipientInfo(settings);
-  const subject = `【請確認】${warningName}`;
+  // warningName 可能含換行且很長（附帶說明/平台/等級），主旨有長度上限，需壓成單行並截斷
+  const subject = buildInteractiveSubject(warningName);
   const plainBody = `資安預警 - 請確認此資產處理狀態\n警訊名稱：${warningName}\n（此信件需以支援 HTML 的郵件用戶端開啟以顯示確認按鈕）`;
   const sendMode = normalizeInteractiveSendMode(settings.interactiveSendMode);
 
