@@ -767,6 +767,7 @@ function previewResendNotify(sheetRow) {
       warningName: warningName,
       matchedAsset: matchedAsset,
       recipient: recipientInfo.display,
+      cc: (settings.assetHitCc || '').trim(),   // J 欄 assetHitCc，與 buildInteractiveEmailOptions 一致
       mode: normalizeInteractiveSendMode(settings.interactiveSendMode),
       hasOriginal: Boolean(messageId)
     };
