@@ -2406,16 +2406,17 @@
                   <input type="checkbox" id="select-all-table" onchange="togglePageSelection(this.checked)" title="全選本頁可處理項目">
                 </th>
                 <th width="4%">#</th>
-                <th width="14%">信件時間</th>
+                <th width="13%">信件時間</th>
+                <th width="8%">補寄通知信</th>
                 <th width="6%">狀態</th>
-                <th width="28%">警訊名稱</th>
-                <th width="21%">命中資產 / 處理結果</th>
+                <th width="24%">警訊名稱</th>
+                <th width="19%">命中資產 / 處理結果</th>
                 <th width="10%">使用狀態</th>
-                <th width="12%">操作者</th>
+                <th width="11%">操作者</th>
               </tr>
             </thead>
             <tbody id="data-body">
-              <tr><td colspan="8" style="text-align:center; padding:20px;">資料載入中...</td></tr>
+              <tr><td colspan="9" style="text-align:center; padding:20px;">資料載入中...</td></tr>
             </tbody>
           </table>
         </div>
@@ -2859,7 +2860,7 @@
         mobileCards.innerHTML = '';
 
         if (filteredData.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px;">目前尚無符合條件的紀錄</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:20px;">目前尚無符合條件的紀錄</td></tr>';
           mobileCards.innerHTML = '<div style="text-align:center; padding:30px; color:#666;">目前尚無符合條件的紀錄</div>';
           document.getElementById('showing-count').textContent = '0';
           updateBulkActionState();
@@ -2890,10 +2891,19 @@
             : (currentPage - 1) * pageSize + index + 1;
 
           // 建構郵件查看按鈕（改為彈窗方式）
-          const emailLink = msgId 
-            ? `<button onclick="showEmailContent('${msgId}')" 
-                  class="email-link" 
+          const emailLink = msgId
+            ? `<button onclick="showEmailContent('${msgId}')"
+                  class="email-link"
                   title="查看郵件內容">📧</button>`
+            : '';
+
+          // 補寄通知信按鈕：使用狀態為「已處理」或無原始信 ID 者不顯示
+          const showResend = notInUse !== '已處理' && msgId;
+          const resendCell = showResend
+            ? `<button class="usage-btn" onclick="confirmResendNotify(${dataIndex})" title="依系統設定補寄互動確認信"><span class="btn-icon">📨</span>補寄</button>`
+            : '<small style="color:#999;">-</small>';
+          const mobileResendBtn = showResend
+            ? `<button class="usage-btn" onclick="confirmResendNotify(${dataIndex})">📨 補寄</button>`
             : '';
 
           // ========== 桌面版表格 ==========
@@ -2942,6 +2952,7 @@
             <td class="row-select-cell">${selectionCell}</td>
             <td>${globalIndex}</td>
             <td>${emailDate || '-'}${overdueBadge}</td>
+            <td>${resendCell}</td>
             <td><span class="tag ${tagClass}">${statusText}</span></td>
             <td>${warningDisplay}</td>
             <td><strong>${asset}</strong><br><small style="color:#666">${action}</small></td>
@@ -2999,6 +3010,7 @@
             <div class="mobile-card-footer">
               <div class="mobile-card-actions">
                 ${emailLink}
+                ${mobileResendBtn}
                 ${mobileUsageStatus}
               </div>
               <div class="mobile-card-operator">👤 ${operatorName}</div>
@@ -3155,6 +3167,100 @@
 
         document.addEventListener('keydown', escHandler);
         document.body.appendChild(overlay);
+      }
+
+      // 補寄通知信：先向後端取得將寄給誰、寄送模式，再彈確認視窗
+      function confirmResendNotify(dataIndex) {
+        const row = filteredData[dataIndex];
+        if (!row) {
+          alert('找不到資料');
+          return;
+        }
+
+        const sheetRow = getSheetRow(row);
+        if (!sheetRow) {
+          alert('找不到對應的工作表列號');
+          return;
+        }
+
+        google.script.run
+          .withSuccessHandler(function(preview) {
+            if (!preview || !preview.success) {
+              alert('無法取得補寄資訊: ' + ((preview && preview.error) || '未知錯誤'));
+              return;
+            }
+            openResendConfirmModal(sheetRow, preview);
+          })
+          .withFailureHandler(function(err) {
+            alert('無法取得補寄資訊: ' + err.message);
+          })
+          .previewResendNotify(sheetRow);
+      }
+
+      // 補寄確認視窗（不改變狀態，故不沿用會顯示「狀態變更為安全」的 buildConfirmDialog）
+      function openResendConfirmModal(sheetRow, preview) {
+        const modeLabel = preview.mode === 'perRecipient' ? '逐一寄送（每位收件人各一封）' : '單封群發（一封 To 給全部收件人）';
+        const overlay = document.createElement('div');
+        overlay.className = 'confirm-overlay';
+        overlay.innerHTML = `
+          <div class="confirm-dialog">
+            <h4>📨 確認補寄通知信</h4>
+            <p></p>
+            ${preview.hasOriginal
+              ? '<p style="color:#888; font-size:12px;">ℹ️ 補寄不會變更此筆的使用狀態</p>'
+              : '<p style="color:#d93025; font-size:12px;">⚠️ 找不到原始信件，無法補寄</p>'}
+            <div class="dialog-actions">
+              <button class="btn-cancel" type="button">取消</button>
+              <button class="btn-confirm done" type="button" ${preview.hasOriginal ? '' : 'disabled'}>📨 確認補寄</button>
+            </div>
+          </div>
+        `;
+        // 以 DOM API 寫入動態文字，避免警訊名稱/收件人中的 HTML 字元破版或注入
+        const intro = overlay.querySelector('p');
+        intro.innerHTML = '系統將依設定重新寄出「互動確認信」。<br>將寄給：<strong></strong><br>寄送模式：<strong></strong><br>警訊：<strong></strong>';
+        const strongs = intro.querySelectorAll('strong');
+        strongs[0].textContent = preview.recipient || '(未設定)';
+        strongs[1].textContent = modeLabel;
+        strongs[2].textContent = preview.warningName || '-';
+
+        const closeOverlay = () => {
+          overlay.remove();
+          document.removeEventListener('keydown', escHandler);
+        };
+        const escHandler = function(e) {
+          if (e.key === 'Escape') closeOverlay();
+        };
+        overlay.addEventListener('click', function(e) {
+          if (e.target === overlay) closeOverlay();
+        });
+        overlay.querySelector('.btn-cancel').addEventListener('click', closeOverlay);
+        overlay.querySelector('.btn-confirm').addEventListener('click', function() {
+          if (this.disabled) return;
+          executeResendNotify(sheetRow, this, closeOverlay);
+        });
+
+        document.addEventListener('keydown', escHandler);
+        document.body.appendChild(overlay);
+      }
+
+      function executeResendNotify(sheetRow, confirmBtn, closeOverlay) {
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '⏳ 補寄中...';
+
+        google.script.run
+          .withSuccessHandler(function(result) {
+            closeOverlay();
+            if (result && result.success) {
+              showToast('📨 已補寄通知信至 ' + result.recipient);
+            } else {
+              showToast('❌ ' + ((result && result.error) || '補寄失敗'), '#f9ab00');
+            }
+          })
+          .withFailureHandler(function(err) {
+            closeOverlay();
+            showToast('❌ 補寄失敗：' + err.message, '#d93025');
+          })
+          .resendInteractiveNotify(sheetRow);
       }
 
       function confirmUsageStatus(dataIndex, usageStatus) {

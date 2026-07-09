@@ -744,6 +744,79 @@ function previewUsageStatusEmail(sheetRow, usageStatus) {
 }
 
 /**
+ * 預覽「補寄通知信」將寄給誰、用哪種寄送模式（供前端確認視窗顯示）
+ * @param {number} sheetRow - SystemLogs 工作表的實際列號（含標題列）
+ * @returns {Object} { success, warningName, matchedAsset, recipient, mode, hasOriginal, error }
+ */
+function previewResendNotify(sheetRow) {
+  try {
+    const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.LOG_SHEET_NAME);
+    if (!sheet) throw new Error('找不到 Log 工作表');
+
+    const actualRow = normalizeSheetRow(sheetRow, sheet.getLastRow());
+    const rowData = sheet.getRange(actualRow, 1, 1, 10).getDisplayValues()[0];
+    const warningName = rowData[2];   // C 欄
+    const matchedAsset = rowData[3];  // D 欄
+    const messageId = rowData[6];     // G 欄
+
+    const settings = getSystemSettings();
+    const recipientInfo = getPrimaryRecipientInfo(settings);
+
+    return {
+      success: true,
+      warningName: warningName,
+      matchedAsset: matchedAsset,
+      recipient: recipientInfo.display,
+      mode: normalizeInteractiveSendMode(settings.interactiveSendMode),
+      hasOriginal: Boolean(messageId)
+    };
+  } catch (e) {
+    console.error('預覽補寄資訊失敗: ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * 補寄「互動確認信」：依系統設定的寄送方式，對指定 SystemLogs 記錄重新寄出。
+ * 與 processSingleMessage 的互動信分支共用 sendInteractiveNotify，僅換一個觸發點。
+ * @param {number} sheetRow - SystemLogs 工作表的實際列號（含標題列）
+ * @returns {Object} { success, recipient, error }
+ */
+function resendInteractiveNotify(sheetRow) {
+  try {
+    const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.LOG_SHEET_NAME);
+    if (!sheet) throw new Error('找不到 Log 工作表');
+
+    const actualRow = normalizeSheetRow(sheetRow, sheet.getLastRow());
+    const rowData = sheet.getRange(actualRow, 1, 1, 10).getDisplayValues()[0];
+    const warningName = rowData[2];   // C 欄
+    const matchedAsset = rowData[3];  // D 欄
+    const messageId = rowData[6];     // G 欄
+
+    if (!messageId) {
+      return { success: false, error: '此記錄無原始信件 ID，無法補寄' };
+    }
+
+    // 互動信按鈕需帶原始 msgId 才能運作，找不到原信時直接擋下，不寄出破損信件
+    const originalMessage = findMessageById(messageId);
+    if (!originalMessage) {
+      return { success: false, error: '找不到原始信件（可能已刪除），無法補寄' };
+    }
+
+    const settings = getSystemSettings();
+    const ok = sendInteractiveNotify(warningName, matchedAsset, originalMessage, settings);
+    return {
+      success: ok,
+      recipient: getPrimaryRecipientInfo(settings).display,
+      error: ok ? '' : '寄送失敗'
+    };
+  } catch (e) {
+    console.error('補寄互動確認信失敗: ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
  * 更新使用狀態（未使用/已處理）
  * @param {number} sheetRow - SystemLogs 工作表的實際列號（含標題列）
  * @param {string} usageStatus - 使用狀態（'未使用' 或 '已處理'）
