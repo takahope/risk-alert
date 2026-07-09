@@ -421,42 +421,51 @@ function buildInteractiveNotifyHtml(opts) {
  */
 function sendInteractiveNotify(warningName, matchedAsset, originalMessage, settings) {
   try {
-    const recipientInfo = getPrimaryRecipientInfo(settings);
-    const subject = `【請確認】${warningName}`;
-    const plainBody = `資安預警 - 請確認此資產處理狀態\n警訊名稱：${warningName}\n（此信件需以支援 HTML 的郵件用戶端開啟以顯示確認按鈕）`;
-    const sendMode = normalizeInteractiveSendMode(settings.interactiveSendMode);
-
-    if (sendMode === 'perRecipient') {
-      recipientInfo.list.forEach(recipient => {
-        const htmlBody = buildInteractiveNotifyHtml({
-          warningName: warningName,
-          matchedAsset: matchedAsset,
-          originalMessage: originalMessage,
-          op: recipient,
-          isTest: false
-        });
-        GmailApp.sendEmail(recipient, subject, plainBody, buildInteractiveEmailOptions(htmlBody, settings));
-      });
-    } else {
-      const htmlBody = buildInteractiveNotifyHtml({
-        warningName: warningName,
-        matchedAsset: matchedAsset,
-        originalMessage: originalMessage,
-        op: recipientInfo.primary,
-        isTest: false
-      });
-      GmailApp.sendEmail(recipientInfo.display, subject, plainBody, buildInteractiveEmailOptions(htmlBody, settings));
-    }
-
-    if (settings.chatNotify) {
-      const ccInfo = settings.assetHitCc ? `\nCC：${settings.assetHitCc}` : '';
-      const modeLabel = sendMode === 'perRecipient' ? '逐一寄送' : '單封群發';
-      sendToChat(`📧 **[互動確認信] 已寄出**\n模式：${modeLabel}\n收件者：${recipientInfo.display}\n警訊：${warningName}${ccInfo}`);
-    }
+    deliverInteractiveNotify(warningName, matchedAsset, originalMessage, settings);
     return true;
   } catch (e) {
     console.error('寄送互動確認信失敗: ' + e.message);
     return false;
+  }
+}
+
+/**
+ * 互動確認信寄送核心（會拋出例外）。
+ * sendInteractiveNotify 包一層 try/catch 回傳 boolean 供 trigger 流程使用；
+ * 需要把真實錯誤回報給前端的路徑（如補寄）則直接呼叫本函式。
+ */
+function deliverInteractiveNotify(warningName, matchedAsset, originalMessage, settings) {
+  const recipientInfo = getPrimaryRecipientInfo(settings);
+  const subject = `【請確認】${warningName}`;
+  const plainBody = `資安預警 - 請確認此資產處理狀態\n警訊名稱：${warningName}\n（此信件需以支援 HTML 的郵件用戶端開啟以顯示確認按鈕）`;
+  const sendMode = normalizeInteractiveSendMode(settings.interactiveSendMode);
+
+  if (sendMode === 'perRecipient') {
+    recipientInfo.list.forEach(recipient => {
+      const htmlBody = buildInteractiveNotifyHtml({
+        warningName: warningName,
+        matchedAsset: matchedAsset,
+        originalMessage: originalMessage,
+        op: recipient,
+        isTest: false
+      });
+      GmailApp.sendEmail(recipient, subject, plainBody, buildInteractiveEmailOptions(htmlBody, settings));
+    });
+  } else {
+    const htmlBody = buildInteractiveNotifyHtml({
+      warningName: warningName,
+      matchedAsset: matchedAsset,
+      originalMessage: originalMessage,
+      op: recipientInfo.primary,
+      isTest: false
+    });
+    GmailApp.sendEmail(recipientInfo.display, subject, plainBody, buildInteractiveEmailOptions(htmlBody, settings));
+  }
+
+  if (settings.chatNotify) {
+    const ccInfo = settings.assetHitCc ? `\nCC：${settings.assetHitCc}` : '';
+    const modeLabel = sendMode === 'perRecipient' ? '逐一寄送' : '單封群發';
+    sendToChat(`📧 **[互動確認信] 已寄出**\n模式：${modeLabel}\n收件者：${recipientInfo.display}\n警訊：${warningName}${ccInfo}`);
   }
 }
 
@@ -805,11 +814,12 @@ function resendInteractiveNotify(sheetRow) {
     }
 
     const settings = getSystemSettings();
-    const ok = sendInteractiveNotify(warningName, matchedAsset, originalMessage, settings);
+    // 直接呼叫會拋錯的核心，讓真實錯誤訊息回報給前端（而非泛用的「寄送失敗」）
+    deliverInteractiveNotify(warningName, matchedAsset, originalMessage, settings);
     return {
-      success: ok,
+      success: true,
       recipient: getPrimaryRecipientInfo(settings).display,
-      error: ok ? '' : '寄送失敗'
+      error: ''
     };
   } catch (e) {
     console.error('補寄互動確認信失敗: ' + e.message);
