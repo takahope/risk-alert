@@ -3218,7 +3218,7 @@
         // 以 DOM API 寫入動態文字，避免警訊名稱/收件人中的 HTML 字元破版或注入
         const ccLine = preview.cc ? 'CC：<strong></strong><br>' : 'CC：<strong>（無）</strong><br>';
         const intro = overlay.querySelector('p');
-        intro.innerHTML = '系統將依設定重新寄出「互動確認信」。<br>將寄給：<strong></strong><br>' + ccLine + '寄送模式：<strong></strong><br>警訊：<strong></strong>';
+        intro.innerHTML = '系統將依設定重新寄出「互動確認信」。<br>將寄給：<strong></strong><br>' + ccLine + '寄送模式：<strong></strong><br>警訊：<strong></strong><br>主旨：<strong style="display:inline-block; margin-top:4px; background:#fff3cd; color:#8a6d00; padding:2px 8px; border-radius:4px; word-break:break-all;"></strong>';
         const strongs = intro.querySelectorAll('strong');
         let s = 0;
         strongs[s++].textContent = preview.recipient || '(未設定)';
@@ -3226,6 +3226,7 @@
         else s++;  // 「（無）」已在骨架寫死，跳過此 strong
         strongs[s++].textContent = modeLabel;
         strongs[s++].textContent = preview.warningName || '-';
+        strongs[s++].textContent = preview.subject || '-';  // 醒目標示實際寄出的主旨
 
         const closeOverlay = () => {
           overlay.remove();

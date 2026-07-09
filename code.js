@@ -788,6 +788,7 @@ function previewResendNotify(sheetRow) {
       success: true,
       warningName: warningName,
       matchedAsset: matchedAsset,
+      subject: buildInteractiveSubject(warningName),  // 與實際寄出的主旨一致（已壓成單行並截斷）
       recipient: recipientInfo.display,
       cc: (settings.assetHitCc || '').trim(),   // J 欄 assetHitCc，與 buildInteractiveEmailOptions 一致
       mode: normalizeInteractiveSendMode(settings.interactiveSendMode),
