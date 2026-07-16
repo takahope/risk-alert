@@ -2115,9 +2115,20 @@
               <select class="settings-cc-input" id="setting-interactiveSendMode" onchange="updateInteractiveSendMode()">
                 <option value="groupTo">單封群發（所有人同一封，點擊者紀錄為處理人員）</option>
                 <option value="perRecipient">逐一寄送（每人一封，操作者較準確）</option>
-                
               </select>
               <div class="settings-cc-hint">多人主要收件人時，第一個有效點擊後，其他人再點擊不會重複寄信。</div>
+            </div>
+
+            <!-- 逾期一個月自動補寄互動信 -->
+            <div class="settings-row">
+              <div class="settings-info">
+                <div class="settings-label">逾期一個月自動補寄互動信</div>
+                <div class="settings-description">開啟後，若項目超過一個月仍為「待處理／待確認」狀態且尚未自動補寄，系統每次例行掃描時會<strong>自動重新寄送一封互動確認信</strong>給主要收件人(+CC)。</div>
+              </div>
+              <label class="settings-switch">
+                <input type="checkbox" id="setting-autoResendInteractive" onchange="updateSettingValue('autoResendInteractive')">
+                <span class="slider"></span>
+              </label>
             </div>
 
             <!-- 寄送互動測試信 -->
@@ -3590,6 +3601,7 @@
           // 一律轉寄資訊組確認（互動信）
           document.getElementById('setting-confirmForwardNotify').checked = settings.confirmForwardNotify;
           document.getElementById('setting-interactiveSendMode').value = settings.interactiveSendMode || 'groupTo';
+          document.getElementById('setting-autoResendInteractive').checked = settings.autoResendInteractive;
           
           // 載入主要收件人設定
           console.log('主要收件人:', settings.assetHitRecipients); // Debug log

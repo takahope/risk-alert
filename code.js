@@ -9,7 +9,7 @@
 // ==========================================
 
 const ALERT_FORWARD_SENDER_NAME = '[資安預警情資通報]';
-const ALERT_REPLY_SENDER_NAME = '資安聯絡人';
+const ALERT_REPLY_SENDER_NAME = '臺灣人體生物資料庫';
 
 function withAlertSenderName(options) {
   const mergedOptions = options ? Object.assign({}, options) : {};
@@ -588,6 +588,7 @@ function getSystemSettings() {
     processedAutoDraft: draftFlags[2] === "是", // P2: 已處理自動草稿
     confirmForwardNotify: draftFlags[3] === "是", // Q2: 一律轉寄資訊組確認（互動信）
     interactiveSendMode: interactiveSendMode,     // R2: 互動信寄送模式
+    autoResendInteractive: sheet.getRange("S2").getDisplayValue() === "是", // S2: 逾期一個月自動補寄
     assetHitCc: assetHitCcList.join(', '),                              // J 欄: 命中資產通知 CC
     notInUseCc: notInUseCcList.join(', '),                              // K 欄: 未使用寄信通知 CC
     processedCc: processedCcList.join(', '),                            // L 欄: 已處理寄信通知 CC
@@ -627,7 +628,9 @@ function updateSystemSetting(key, isEnabled) {
   if (key === 'notInUseAutoDraft') sheet.getRange("O2").setValue(val);   // O2: 未使用自動草稿
   if (key === 'processedAutoDraft') sheet.getRange("P2").setValue(val);  // P2: 已處理自動草稿
   if (key === 'confirmForwardNotify') sheet.getRange("Q2").setValue(val); // Q2: 一律轉寄資訊組確認
+  if (key === 'autoResendInteractive') sheet.getRange("S2").setValue(val); // S2: 逾期一個月自動補寄
 
+  SpreadsheetApp.flush();
   return { success: true };
 }
 
@@ -839,6 +842,91 @@ function resendInteractiveNotify(sheetRow) {
     console.error('補寄互動確認信失敗: ' + e.message);
     return { success: false, error: e.message };
   }
+}
+
+/**
+ * 檢查 SystemLogs 記錄，將逾期超過一個月且尚未處理、亦未自動補寄過的項目進行互動信自動補寄。
+ * @param {Object} settings - 系統設定
+ * @returns {number} 實際完成自動補寄的信件數量
+ */
+function autoResendOverdueInteractiveEmails(settings) {
+  if (!settings || !settings.autoResendInteractive) return 0;
+  
+  try {
+    const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.LOG_SHEET_NAME);
+    if (!sheet) return 0;
+    
+    const lastRow = sheet.getLastRow();
+    if (lastRow <= 1) return 0;
+    
+    // 讀取第 2 列至末列，第 1 至 10 欄資料
+    const data = sheet.getRange(2, 1, lastRow - 1, 10).getDisplayValues();
+    const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    let resendCount = 0;
+    
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      const warningName = row[2];
+      const matchedAsset = row[3];
+      const action = row[4] || '';
+      const emailDateStr = row[5];
+      const msgId = row[6];
+      const operator = row[9];
+      
+      // 1. 已由人工處理（有 Operator）則跳過
+      if (operator && operator.trim() !== '') continue;
+      
+      // 2. 缺少信件時間或 Message ID 則跳過
+      if (!msgId || !emailDateStr) continue;
+      
+      // 3. 已有自動補寄紀錄則跳過，避免重複寄信
+      if (action.includes('逾期一個月自動補寄')) continue;
+      
+      // 4. 判斷時間差是否大於 30 天
+      const parsedDate = new Date(String(emailDateStr).trim().replace(' ', 'T'));
+      if (isNaN(parsedDate.getTime())) continue;
+      
+      if ((now - parsedDate.getTime()) > ONE_MONTH_MS) {
+        const originalMessage = findMessageById(msgId);
+        if (!originalMessage) continue;
+        
+        try {
+          deliverInteractiveNotify(warningName, matchedAsset, originalMessage, settings);
+          const actualRow = i + 2;
+          const currentAction = sheet.getRange(actualRow, 5).getValue();
+          const newAction = currentAction ? `${currentAction} | 逾期一個月自動補寄` : '逾期一個月自動補寄';
+          sheet.getRange(actualRow, 5).setValue(newAction);
+          resendCount++;
+        } catch (err) {
+          console.error(`自動補寄第 ${i + 2} 列記錄失敗: ` + err.message);
+        }
+      }
+    }
+    
+    if (resendCount > 0 && settings.chatNotify) {
+      sendToChat(`⏰ **[逾期一個月自動補寄]**\n本次已自動補寄 ${resendCount} 封超過一個月未處理的互動確認信。`);
+    }
+    
+    return resendCount;
+  } catch (e) {
+    console.error("執行逾期一個月互動信自動補寄流程失敗: " + e.message);
+    return 0;
+  }
+}
+
+/**
+ * 獨立手動或由排程觸發器調用的頂層檢查函數
+ * @returns {string} 檢查執行結果摘要
+ */
+function checkAndAutoResendInteractiveEmails() {
+  const settings = getSystemSettings();
+  if (!settings.autoResendInteractive) {
+    console.log("「逾期一個月自動補寄」功能開關未啟用。");
+    return "已跳過 (設定未啟用)";
+  }
+  const count = autoResendOverdueInteractiveEmails(settings);
+  return `自動補寄檢查完成，共發送 ${count} 封互動確認信。`;
 }
 
 /**
@@ -1162,7 +1250,13 @@ function processIncomingEmails() {
     });
   });
   
-  return `掃描完成，處理了 ${processCount} 封新信件`;
+  // 執行逾期一個月互動信自動補寄檢查
+  let resendCount = 0;
+  if (settings.autoResendInteractive) {
+    resendCount = autoResendOverdueInteractiveEmails(settings);
+  }
+  
+  return `掃描完成，處理了 ${processCount} 封新信件` + (resendCount > 0 ? `，並自動補寄了 ${resendCount} 封逾期一月互動信` : '');
 }
 
 function processSingleMessage(message, assetList, settings) {
@@ -1405,8 +1499,8 @@ function ensureSettingsSheetExists() {
   let settingSheet = ss.getSheetByName(CONFIG.SETTINGS_SHEET_NAME);
   if (!settingSheet) {
     settingSheet = ss.insertSheet(CONFIG.SETTINGS_SHEET_NAME);
-    settingSheet.appendRow(['掃描已讀信件 (A2)', '開啟自動草稿 (B2)', '開啟Chat通知 (C2)', '授權使用者 (D欄)', '使用者姓名 (E欄)', '保留欄位 (F欄)', '未使用寄信通知 (G2)', '已處理寄信通知 (H2)', '命中資產通知 (I2)', '命中資產CC (J2)', '未使用CC (K2)', '已處理CC (L2)', '命中資產主要收件人 (M2)', '命中資產自動草稿 (N2)', '未使用自動草稿 (O2)', '已處理自動草稿 (P2)', '一律轉寄資訊組確認 (Q2)', '互動信寄送模式 (R2)']);
-    settingSheet.appendRow(['否', '是', '是', '', '', '', '否', '否', '是', '', '', '', CONFIG.PERSON_A_EMAIL, '否', '否', '否', '否', 'groupTo']);
+    settingSheet.appendRow(['掃描已讀信件 (A2)', '開啟自動草稿 (B2)', '開啟Chat通知 (C2)', '授權使用者 (D欄)', '使用者姓名 (E欄)', '保留欄位 (F欄)', '未使用寄信通知 (G2)', '已處理寄信通知 (H2)', '命中資產通知 (I2)', '命中資產CC (J2)', '未使用CC (K2)', '已處理CC (L2)', '命中資產主要收件人 (M2)', '命中資產自動草稿 (N2)', '未使用自動草稿 (O2)', '已處理自動草稿 (P2)', '一律轉寄資訊組確認 (Q2)', '互動信寄送模式 (R2)', '逾期一個月自動補寄 (S2)']);
+    settingSheet.appendRow(['否', '是', '是', '', '', '', '否', '否', '是', '', '', '', CONFIG.PERSON_A_EMAIL, '否', '否', '否', '否', 'groupTo', '否']);
     SpreadsheetApp.flush();
     return;
   }
@@ -1418,6 +1512,12 @@ function ensureSettingsSheetExists() {
     settingSheet.getRange("R2").setValue('groupTo');
   } else {
     settingSheet.getRange("R2").setValue(normalizeInteractiveSendMode(settingSheet.getRange("R2").getDisplayValue()));
+  }
+  if (settingSheet.getLastColumn() < 19 || !settingSheet.getRange("S1").getDisplayValue()) {
+    settingSheet.getRange("S1").setValue('逾期一個月自動補寄 (S2)');
+  }
+  if (!settingSheet.getRange("S2").getDisplayValue()) {
+    settingSheet.getRange("S2").setValue('否');
   }
   SpreadsheetApp.flush();
 }
