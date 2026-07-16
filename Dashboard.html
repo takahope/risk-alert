@@ -2137,6 +2137,13 @@
               <button type="button" class="settings-test-btn" onclick="sendInteractiveTest(this)">📧 寄送互動測試信到主要收件人</button>
               <div class="settings-cc-hint">寄一封互動測試信到上方主要收件人；點擊信中按鈕後，系統會把「將回覆給原始寄件者的內容」模擬寄到 PERSON_A_EMAIL 供確認。</div>
             </div>
+
+            <!-- 手動執行逾期一個月自動補寄檢查 -->
+            <div class="settings-cc-row">
+              <div class="settings-cc-label">🚀 逾期補寄檢查</div>
+              <button type="button" class="settings-test-btn" onclick="triggerAutoResendCheck(this)">⏰ 立即檢查並補寄逾期一個月信件</button>
+              <div class="settings-cc-hint">手動觸發一次逾期一個月未處理互動信的自動補寄檢查（需先將上方開關開啟）。</div>
+            </div>
           </div>
 
           <!-- 自動寄信設定（未使用/已處理） -->
@@ -3704,6 +3711,25 @@
             showSettingsToast('❌ 寄送失敗: ' + error.message);
           })
           .sendTestInteractiveEmail();
+      }
+
+      // 手動觸發逾期一個月互動信自動補寄檢查
+      function triggerAutoResendCheck(btn) {
+        const original = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '⏳ 檢查中...';
+        google.script.run
+          .withSuccessHandler(function(result) {
+            btn.disabled = false;
+            btn.textContent = original;
+            showSettingsToast('✅ ' + (result || '檢查完成'));
+          })
+          .withFailureHandler(function(error) {
+            btn.disabled = false;
+            btn.textContent = original;
+            showSettingsToast('❌ 檢查失敗: ' + error.message);
+          })
+          .checkAndAutoResendInteractiveEmails();
       }
 
       function updateSettingBadge(key, isEnabled) {

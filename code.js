@@ -880,8 +880,8 @@ function autoResendOverdueInteractiveEmails(settings) {
       // 2. 缺少信件時間或 Message ID 則跳過
       if (!msgId || !emailDateStr) continue;
       
-      // 3. 已有自動補寄紀錄則跳過，避免重複寄信
-      if (action.includes('逾期一個月自動補寄')) continue;
+      // 3. 已有自動補寄或停止紀錄則跳過，避免重複寄信或重複查詢
+      if (action.includes('逾期一個月自動補寄') || action.includes('逾期一月補寄停止')) continue;
       
       // 4. 判斷時間差是否大於 30 天
       const parsedDate = new Date(String(emailDateStr).trim().replace(' ', 'T'));
@@ -889,14 +889,21 @@ function autoResendOverdueInteractiveEmails(settings) {
       
       if ((now - parsedDate.getTime()) > ONE_MONTH_MS) {
         const originalMessage = findMessageById(msgId);
-        if (!originalMessage) continue;
+        if (!originalMessage) {
+          // 註記原信已不存在，避免日後定時掃描無限次重複向 Gmail API 索取遺失的郵件
+          const actualRow = i + 2;
+          const newAction = action ? `${action} | 逾期一月補寄停止(原信已移除)` : '逾期一月補寄停止(原信已移除)';
+          sheet.getRange(actualRow, 5).setValue(newAction);
+          SpreadsheetApp.flush();
+          continue;
+        }
         
         try {
           deliverInteractiveNotify(warningName, matchedAsset, originalMessage, settings);
           const actualRow = i + 2;
-          const currentAction = sheet.getRange(actualRow, 5).getValue();
-          const newAction = currentAction ? `${currentAction} | 逾期一個月自動補寄` : '逾期一個月自動補寄';
+          const newAction = action ? `${action} | 逾期一個月自動補寄` : '逾期一個月自動補寄';
           sheet.getRange(actualRow, 5).setValue(newAction);
+          SpreadsheetApp.flush(); // 確保寄信後標記即時落地，避免超時/異常造成無限重複寄信
           resendCount++;
         } catch (err) {
           console.error(`自動補寄第 ${i + 2} 列記錄失敗: ` + err.message);
